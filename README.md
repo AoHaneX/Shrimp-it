@@ -68,7 +68,7 @@ py -m venv .venv
 
 L’activation de `.venv` n’est pas nécessaire avec ces commandes explicites. Pour les lancements suivants, seule la dernière commande est requise. Après un déplacement du projet, recréez l’environnement virtuel et réinstallez le projet au lieu de réutiliser une `.venv` copiée.
 
-Les dépendances sont déclarées dans [`pyproject.toml`](pyproject.toml) : `Pillow>=12.0,<13` et `PySide6>=6.8,<7`. [`requirements-tested.txt`](requirements-tested.txt) conserve les versions directes d’une validation antérieure ; ce n’est pas un verrou complet des dépendances.
+Les dépendances sont déclarées dans [`pyproject.toml`](pyproject.toml) : `Pillow>=13.0,<14` et `PySide6>=6.8,<7`. [`requirements-tested.txt`](requirements-tested.txt) conserve les versions directes d’une validation antérieure ; ce n’est pas un verrou complet des dépendances.
 
 Le lancement depuis les sources est la méthode documentée ici. Le lanceur personnel `Lancer-ShrimpIt.bat` est exclu du dépôt et n’est pas requis. Aucun exécutable autonome validé n’est fourni dans ce dépôt.
 
