@@ -1,0 +1,1 @@
+Optional PNG icons: home.png, image.png, expand.png, history.png, settings.png, menu.png, upload.png, folder.png, close.png. Use square transparent images. Restart the application after replacing an icon.

@@ -1,0 +1,63 @@
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python caches and generated package metadata
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pytype/
+.tox/
+.nox/
+
+# Coverage and local reports
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+/audit-results/
+
+# Builds and distribution artifacts
+build/
+dist/
+*.whl
+*.egg
+
+# Local editor and operating-system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+*.tmp
+*.log
+*.log.*
+
+# Local launcher, agent rules, dated validation logs and manual image exports
+/Lancer-ShrimpIt.bat
+/AGENTS.md
+/docs/archive/
+/tests/n/
+
+# Local secrets and copied runtime data
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+/history.json
+/history.lock
+/history-invalid-*.json
+
+# Keep application assets and automated test fixtures versioned.

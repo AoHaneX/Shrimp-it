@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shrimpit"
+version = "0.5.0"
+description = "Compression, conversion et agrandissement locaux d’images"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+dependencies = ["Pillow>=12.0,<13", "PySide6>=6.8,<7"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10", "pytest-cov>=6,<8", "ruff>=0.14,<1"]
+audit = ["bandit>=1.9,<2", "pip-audit>=2.10,<3"]
+
+[project.gui-scripts]
+shrimpit = "shrimpit.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+shrimpit = ["assets/backgrounds/*.png", "assets/branding/*.png", "assets/icons/*.png", "assets/icons/*.md", "assets/animations/*.gif", "assets/fonts/*.ttf", "assets/licenses/*.txt", "assets/sounds/*.ogg", "assets/examples/*.png", "assets/examples/*.jpg", "assets/examples/*.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 110
+extend-exclude = ["build", "dist"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = ["E402"]
+
+[tool.coverage.run]
+source = ["shrimpit"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
