@@ -38,31 +38,31 @@ def window(qt_application, tmp_path):
 
 def test_pixel_mode_limits_controls_and_restores_format(window):
     page = window.enlargement
-    page.format.setCurrentText("WebP")
-    page.factor.setCurrentIndex(3)
-    page.upscale_controls.mode.setCurrentIndex(2)
-    assert page.format.currentText() == "PNG"
-    assert not page.format.isEnabled()
-    assert page.factor.currentData() == 2
-    assert not page.factor.model().item(3).isEnabled()
-    assert page.custom.isHidden()
-    assert page.upscale_controls.sharpen.isHidden()
+    page.output.format.setCurrentText("WebP")
+    page.output.factor.setCurrentIndex(3)
+    page.output.upscale_controls.mode.setCurrentIndex(2)
+    assert page.output.format.currentText() == "PNG"
+    assert not page.output.format.isEnabled()
+    assert page.output.factor.currentData() == 2
+    assert not page.output.factor.model().item(3).isEnabled()
+    assert page.output.custom.isHidden()
+    assert page.output.upscale_controls.sharpen.isHidden()
     assert page.before.canvas.pixel_art and page.after.canvas.pixel_art
-    page.upscale_controls.mode.setCurrentIndex(1)
-    assert page.format.currentText() == "WebP"
-    assert page.format.isEnabled()
-    assert page.factor.model().item(3).isEnabled()
-    assert not page.upscale_controls.interpolation.isHidden()
+    page.output.upscale_controls.mode.setCurrentIndex(1)
+    assert page.output.format.currentText() == "WebP"
+    assert page.output.format.isEnabled()
+    assert page.output.factor.model().item(3).isEnabled()
+    assert not page.output.upscale_controls.interpolation.isHidden()
     assert not page.after.canvas.pixel_art
-    assert window.compression.upscale_controls.isHidden()
-    assert window.compression.format.currentText() == "JPEG"
+    assert window.compression.output.upscale_controls.isHidden()
+    assert window.compression.output.format.currentText() == "JPEG"
 
 
 @pytest.mark.parametrize("mode", [0, 1, 2])
 def test_mode_used_by_preview_and_batch_export(window, qt_application, tmp_path, monkeypatch, mode):
     page = window.enlargement
-    page.upscale_controls.mode.setCurrentIndex(mode)
-    page.factor.setCurrentIndex(1)
+    page.output.upscale_controls.mode.setCurrentIndex(mode)
+    page.output.factor.setCurrentIndex(1)
     sources = []
     for i in range(2):
         path = tmp_path / f"source-{i}.png"
@@ -87,7 +87,7 @@ def test_mode_used_by_preview_and_batch_export(window, qt_application, tmp_path,
         if mode == 2:
             assert output.getpixel((9, 6)) == (10, 100, 220, 255)
             assert output.getpixel((8, 6)) == (255, 0, 0, 0)
-    assert page.format.isEnabled() == (mode != 2)
+    assert page.output.format.isEnabled() == (mode != 2)
 
 
 def test_sharpness_controls_trigger_new_preview(window, qt_application, tmp_path):
@@ -99,9 +99,9 @@ def test_sharpness_controls_trigger_new_preview(window, qt_application, tmp_path
     page.add_files([source])
     wait_until(qt_application, lambda: page.preview_payload is not None and page.preview_job is None)
     sharpened = page.preview_payload[1]
-    page.upscale_controls.sharpen.setChecked(False)
+    page.output.upscale_controls.sharpen.setChecked(False)
     wait_until(qt_application, lambda: page.preview_payload is not None and page.preview_job is None)
     plain = page.preview_payload[1]
     with Image.open(BytesIO(sharpened)) as first, Image.open(BytesIO(plain)) as second:
         assert first.tobytes() != second.tobytes()
-    assert page.upscale_controls.amount.isHidden()
+    assert page.output.upscale_controls.amount.isHidden()

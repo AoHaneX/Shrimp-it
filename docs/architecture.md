@@ -42,6 +42,7 @@ Shrimpit/
         ├── comparison.py     Comparaison avant/après avec séparation mobile
         ├── workers.py        Traitements dans des threads Qt
         ├── history_thumbnails.py Miniatures de l’historique hors du thread d’interface
+        ├── output_settings.py Format, qualité, facteur, dimensions et modèle de nom
         ├── upscale_controls.py Choix du mode et réglages de netteté
         ├── notifications.py  Son et notification de fin
         └── pages/
@@ -69,8 +70,8 @@ Shrimpit/
   256 avant conversion, car une conversion directe de Pillow écrête les valeurs et blanchit l’image.
 - Interface et documentation en français ; commentaires et docstrings en anglais.
 
-`gui/pages/processing.py` reste le module le plus volumineux. On pourra en extraire le panneau de
-réglages s’il continue de grossir.
+`gui/pages/processing.py` gère la liste d’images, les aperçus et l’export ; les réglages de sortie et le
+modèle de nom sont dans `gui/output_settings.py`.
 
 ## Agrandissement
 

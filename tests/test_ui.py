@@ -142,16 +142,16 @@ def test_batch_export_and_collision(app, window, source, tmp_path, monkeypatch):
 def test_custom_dimensions_and_ratio(app, window, source, tmp_path, monkeypatch):
     page = window.enlargement
     page.add_files([source])
-    page.factor.setCurrentIndex(3)
-    page.width_input.setValue(120)
-    assert page.height_input.value() == 60
+    page.output.factor.setCurrentIndex(3)
+    page.output.width_input.setValue(120)
+    assert page.output.height_input.value() == 60
     destination = tmp_path / "custom.png"
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: (str(destination), ""))
     page.start_export()
     wait_for(app, lambda: page.job is None)
     with Image.open(destination) as image:
         assert image.size == (120, 60)
-    assert "120x60" in page.filename.text()
+    assert "120x60" in page.output.filename.text()
 
 
 def test_corrupt_import_and_duplicate_filter(window, source, tmp_path):
@@ -168,7 +168,7 @@ def test_preview_uses_latest_settings(app, window, source):
     page = window.enlargement
     page.add_files([source])
     page.start_preview()
-    page.factor.setCurrentIndex(2)
+    page.output.factor.setCurrentIndex(2)
     wait_for(app, lambda: page.preview_payload is not None and page.preview_job is None)
     assert page.preview_payload[2].output_size == (160, 80)
 
@@ -192,7 +192,7 @@ def test_export_error_restores_controls(app, window, source, tmp_path, monkeypat
 def test_single_export_refused_before_start(window, source, tmp_path, monkeypatch, chosen):
     page = window.compression
     page.add_files([source])
-    page.format.setCurrentText("PNG")
+    page.output.format.setCurrentText("PNG")
     target = source if chosen == "source" else tmp_path / "result.jpg"
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: (str(target), ""))
     before = source.read_bytes()

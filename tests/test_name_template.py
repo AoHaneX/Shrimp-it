@@ -29,15 +29,15 @@ def test_template_keeps_dots_accents_and_literal_brackets_in_source():
 def test_default_model_is_visible_before_import_and_tracks_factor(qt_application):
     page = ProcessingPage(enlarge=True)
     try:
-        assert page.filename.text() == "[original name]-x2.png"
-        page.factor.setCurrentIndex(2)
-        assert page.filename.text() == "[original name]-x4.png"
-        page.format.setCurrentText("JPEG")
-        assert page.filename.text() == "[original name]-x4.jpg"
-        page.filename.setText("web-[original name]-final.jpg")
-        page.store_name()
-        page.factor.setCurrentIndex(0)
-        assert page.filename.text() == "web-[original name]-final.jpg"
+        assert page.output.filename.text() == "[original name]-x2.png"
+        page.output.factor.setCurrentIndex(2)
+        assert page.output.filename.text() == "[original name]-x4.png"
+        page.output.format.setCurrentText("JPEG")
+        assert page.output.filename.text() == "[original name]-x4.jpg"
+        page.output.filename.setText("web-[original name]-final.jpg")
+        page.output.store_name()
+        page.output.factor.setCurrentIndex(0)
+        assert page.output.filename.text() == "web-[original name]-final.jpg"
     finally:
         page.stop_timers()
         page.close()
@@ -50,12 +50,12 @@ def test_default_custom_dimensions_are_resolved_per_image(tmp_path, qt_applicati
         Image.new("RGB", size).save(source)
     try:
         page.add_files(sources)
-        page.factor.setCurrentIndex(3)
-        page.width_input.setValue(80)
+        page.output.factor.setCurrentIndex(3)
+        page.output.width_input.setValue(80)
         assert page.output_name(sources[0]) == "wide-80x40.png"
         assert page.output_name(sources[1]) == "square-80x80.png"
         page.clear_images()
-        assert page.filename.text().startswith("[original name]")
+        assert page.output.filename.text().startswith("[original name]")
     finally:
         page.stop_timers()
         page.close()
@@ -76,16 +76,16 @@ def test_shared_template_exports_all_files_and_survives_selection(
     monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *a, **k: str(output))
     try:
         page.add_files(sources)
-        page.format.setCurrentText("PNG")
-        assert page.filename.text().startswith("[original name]")
-        page.filename.setText("web-[original name]-final.png")
-        page.store_name()
+        page.output.format.setCurrentText("PNG")
+        assert page.output.filename.text().startswith("[original name]")
+        page.output.filename.setText("web-[original name]-final.png")
+        page.output.store_name()
         page.files.setCurrentRow(0)
-        assert page.filename.text() == "web-[original name]-final.png"
-        assert "web-été-final.png" in page.name_example.text()
-        page.format.setCurrentText("WebP")
-        assert page.filename.text() == "web-[original name]-final.webp"
-        page.format.setCurrentText("PNG")
+        assert page.output.filename.text() == "web-[original name]-final.png"
+        assert "web-été-final.png" in page.output.name_example.text()
+        page.output.format.setCurrentText("WebP")
+        assert page.output.filename.text() == "web-[original name]-final.webp"
+        page.output.format.setCurrentText("PNG")
         page.start_export()
         assert page.job is not None
         assert page.job.wait(10000)

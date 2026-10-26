@@ -95,8 +95,8 @@ def test_corrupt_preferences_do_not_prevent_startup(tmp_path, qt_application):
         settings.setValue(key, "invalid")
     window = MainWindow(settings)
     try:
-        assert window.compression.quality.value() == 80
-        assert window.enlargement.factor.currentData() == 2
+        assert window.compression.output.quality.value() == 80
+        assert window.enlargement.output.factor.currentData() == 2
         assert window.preferences.sound.isChecked()
         assert window.notifier.player is None
     finally:
@@ -106,25 +106,25 @@ def test_corrupt_preferences_do_not_prevent_startup(tmp_path, qt_application):
 def test_custom_name_survives_format_and_factor_changes(window, source):
     page = window.enlargement
     page.add_files([source])
-    page.filename.setText("portfolio.png")
-    page.store_name()
-    page.factor.setCurrentIndex(2)
-    assert page.filename.text() == "portfolio.png"
-    page.format.setCurrentText("WebP")
-    assert page.filename.text() == "portfolio.webp"
-    page.filename.setText(".")
-    page.store_name()
-    page.factor.setCurrentIndex(0)
-    assert page.filename.text() == "."
+    page.output.filename.setText("portfolio.png")
+    page.output.store_name()
+    page.output.factor.setCurrentIndex(2)
+    assert page.output.filename.text() == "portfolio.png"
+    page.output.format.setCurrentText("WebP")
+    assert page.output.filename.text() == "portfolio.webp"
+    page.output.filename.setText(".")
+    page.output.store_name()
+    page.output.factor.setCurrentIndex(0)
+    assert page.output.filename.text() == "."
 
 
 def test_deleted_source_does_not_break_custom_dimension_controls(window, source):
     page = window.enlargement
     page.add_files([source])
     source.unlink()
-    page.factor.setCurrentIndex(3)
-    page.width_input.setValue(80)
-    assert "80x40" in page.filename.text()
+    page.output.factor.setCurrentIndex(3)
+    page.output.width_input.setValue(80)
+    assert "80x40" in page.output.filename.text()
 
 
 def test_clear_list_discards_pending_preview(window, source, qt_application):

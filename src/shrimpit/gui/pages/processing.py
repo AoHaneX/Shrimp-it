@@ -5,40 +5,27 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QTimer, Signal, Slot
 from PySide6.QtWidgets import (
     QBoxLayout,
-    QCheckBox,
-    QComboBox,
     QFileDialog,
-    QFormLayout,
     QHBoxLayout,
-    QLineEdit,
     QListWidget,
     QProgressBar,
     QPushButton,
-    QSpinBox,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
-from shrimpit.engine import EXTENSIONS, SUFFIXES
+from shrimpit.engine import EXTENSIONS
 from shrimpit.errors import ConversionError
 from shrimpit.examples import example_preview
 from shrimpit.filenames import validate_filename
 from shrimpit.gui.comparison import ComparisonPreview
+from shrimpit.gui.output_settings import OutputSettings
 from shrimpit.gui.pages.common import page_heading
 from shrimpit.gui.theme import icon
-from shrimpit.gui.upscale_controls import UpscaleControls
 from shrimpit.gui.widgets import DropZone, PreviewCard, label, panel
 from shrimpit.gui.workers import ExportJob, PreviewJob
-from shrimpit.preferences import integer_setting
-from shrimpit.processing import (
-    Options,
-    expand_name_template,
-    export_plan,
-    image_info,
-    readable_size,
-    suggested_name,
-)
+from shrimpit.processing import export_plan, image_info, readable_size, suggested_name
 
 
 class ProcessingPage(QWidget):
@@ -52,12 +39,10 @@ class ProcessingPage(QWidget):
         self.shutting_down = False
         self.sources = []
         self.infos = {}
-        self.name_template = None
         self.job = None
         self.preview_job = None
         self.revision = 0
         self.preview_payload = None
-        self.updating = False
         layout = QVBoxLayout(self)
         layout.setContentsMargins(22, 24, 22, 22)
         layout.setSpacing(14)
@@ -127,78 +112,8 @@ class ProcessingPage(QWidget):
         self.clear.clicked.connect(self.clear_images)
         file_actions.addWidget(self.clear)
         controls.addLayout(file_actions)
-        controls.addWidget(label("02   Réglages", "section"))
-        self.upscale_controls = UpscaleControls()
-        self.upscale_controls.setVisible(enlarge)
-        controls.addWidget(self.upscale_controls)
-        self._pixel_mode = False
-        self._previous_format = "PNG"
-        form = QFormLayout()
-        form.setSpacing(8)
-        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
-        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
-        self.format = QComboBox()
-        self.format.addItems(["PNG", "JPEG", "WebP"])
-        self.format.setCurrentText("PNG" if enlarge else "JPEG")
-        self.quality = QSpinBox()
-        self.quality.setRange(1, 95)
-        self.quality.setAccessibleName("Qualité JPEG ou WebP")
-        self.format.setAccessibleName("Format de sortie")
-        self.quality.setValue(95 if enlarge else integer_setting(settings, "quality", 80, 1, 95))
-        form.addRow("Format de sortie", self.format)
-        form.addRow("Qualité JPEG / WebP", self.quality)
-        self.factor = QComboBox()
-        for scale in (2, 3, 4):
-            self.factor.addItem(f"×{scale}", scale)
-        self.factor.addItem("Dimensions personnalisées", None)
-        if settings:
-            index = self.factor.findData(integer_setting(settings, "scale", 2, 2, 4))
-            self.factor.setCurrentIndex(max(index, 0))
-        form.addRow("Agrandissement", self.factor)
-        form.setRowVisible(self.factor, enlarge)
-        controls.addLayout(form)
-
-        self.custom = QWidget()
-        custom_layout = QVBoxLayout(self.custom)
-        custom_layout.setContentsMargins(0, 0, 0, 0)
-        dimensions = QHBoxLayout()
-        self.width_input, self.height_input = QSpinBox(), QSpinBox()
-        for widget in (self.width_input, self.height_input):
-            widget.setRange(1, 100000)
-            widget.setSuffix(" px")
-        self.width_input.setValue(1600)
-        self.height_input.setValue(1200)
-        self.width_input.setAccessibleName("Largeur de sortie")
-        self.height_input.setAccessibleName("Hauteur de sortie")
-        dimensions.addWidget(self.width_input, 1)
-        separator = label("×", wrap=False)
-        separator.setFixedWidth(18)
-        separator.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        dimensions.addWidget(separator)
-        dimensions.addWidget(self.height_input, 1)
-        custom_layout.addLayout(dimensions)
-        self.keep_ratio = QCheckBox("Conserver les proportions")
-        self.keep_ratio.setChecked(True)
-        custom_layout.addWidget(self.keep_ratio)
-        controls.addWidget(self.custom)
-        self.note = label("", "muted")
-        controls.addWidget(self.note)
-        controls.addWidget(label("Modèle de nom pour toutes les images", "muted"))
-        self.filename = QLineEdit()
-        self.filename.setAccessibleName("Modèle de nom pour toutes les images")
-        self.filename.setPlaceholderText("[original name]-x2.png" if enlarge else "[original name]-min.jpg")
-        self.filename.editingFinished.connect(self.store_name)
-        self.filename.textEdited.connect(self.store_name)
-        controls.addWidget(self.filename)
-        controls.addWidget(
-            label(
-                "[original name] reprend le nom sans extension de chaque image. "
-                "Ajoutez un préfixe ou un suffixe ; les doublons seront numérotés.",
-                "muted",
-            )
-        )
-        self.name_example = label("", "muted")
-        controls.addWidget(self.name_example)
+        self.output = OutputSettings(enlarge, settings)
+        controls.addWidget(self.output)
         self.body.addWidget(self.settings_panel, 2)
         layout.addLayout(self.body)
         self.export = QPushButton("Agrandir et enregistrer…" if enlarge else "Compresser et enregistrer…")
@@ -230,14 +145,8 @@ class ProcessingPage(QWidget):
         self.preview_timer.setSingleShot(True)
         self.preview_timer.setInterval(350)
         self.preview_timer.timeout.connect(self.start_preview)
-        self.format.currentTextChanged.connect(self.options_changed)
-        self.quality.valueChanged.connect(self.schedule_preview)
-        self.factor.currentIndexChanged.connect(self.options_changed)
-        self.width_input.valueChanged.connect(lambda: self.dimensions_changed(True))
-        self.height_input.valueChanged.connect(lambda: self.dimensions_changed(False))
-        self.keep_ratio.toggled.connect(lambda: self.dimensions_changed(True))
-        self.upscale_controls.changed.connect(self.upscale_changed)
-        self.options_changed()
+        self.output.changed.connect(self.settings_changed)
+        self.settings_changed()
 
     @property
     def source(self):
@@ -245,36 +154,14 @@ class ProcessingPage(QWidget):
         return self.sources[row] if 0 <= row < len(self.sources) else None
 
     def options(self):
-        custom = self.enlarge and self.factor.currentData() is None
-        size = (self.width_input.value(), self.height_input.value()) if custom else None
-        return Options(
-            self.enlarge,
-            self.format.currentText().upper(),
-            self.quality.value(),
-            self.factor.currentData() or 2,
-            size,
-            self.keep_ratio.isChecked(),
-            self.upscale_controls.settings(),
-        )
+        return self.output.options()
 
     @Slot()
-    def upscale_changed(self):
-        pixel_art = self.enlarge and self.upscale_controls.mode.currentData() == "pixel_art"
-        self.format.blockSignals(True)
-        self.factor.blockSignals(True)
-        if pixel_art and not self._pixel_mode:
-            self._previous_format = self.format.currentText()
-            self.format.setCurrentText("PNG")
-        elif self._pixel_mode and not pixel_art:
-            self.format.setCurrentText(self._previous_format)
-        if pixel_art and self.factor.currentData() is None:
-            self.factor.setCurrentIndex(0)
-        self.format.setEnabled(not pixel_art)
-        self.factor.model().item(3).setEnabled(not pixel_art)
-        self._pixel_mode = pixel_art
-        self.factor.blockSignals(False)
-        self.format.blockSignals(False)
-        self.options_changed()
+    def settings_changed(self):
+        for canvas in (self.before.canvas, self.after.canvas, self.comparison.canvas):
+            canvas.pixel_art = self.output.pixel_mode
+            canvas.update()
+        self.schedule_preview()
 
     @Slot()
     def choose_files(self):
@@ -322,19 +209,10 @@ class ProcessingPage(QWidget):
             self.info.setText(
                 f"{info.size[0]} × {info.size[1]} · {readable_size(info.byte_count)} · {info.format}"
             )
-            self.updating = True
-            if self.factor.currentData() is not None:
-                self.width_input.setValue(info.size[0] * 2)
-                self.height_input.setValue(info.size[1] * 2)
-            elif self.keep_ratio.isChecked():
-                self.height_input.setValue(
-                    max(1, round(self.width_input.value() * info.size[1] / info.size[0]))
-                )
-            self.updating = False
-
+            self.output.set_source(self.source, info.size)
         else:
             self.info.setText("Aucune image sélectionnée")
-        self.refresh_name_template()
+            self.output.set_source(None, None)
         self.schedule_preview()
 
     @Slot()
@@ -351,99 +229,8 @@ class ProcessingPage(QWidget):
         self.selection_changed(self.files.currentRow())
         self.export.setEnabled(bool(self.sources))
 
-    @Slot()
-    def options_changed(self):
-        if self.updating:
-            return
-        self.custom.setVisible(self.enlarge and self.factor.currentData() is None)
-        self.quality.setEnabled(self.format.currentText() != "PNG" and self.job is None)
-        text = (
-            "Agrandissement sans IA · Sortie jusqu’à 400 MP, selon la RAM disponible."
-            if self.enlarge
-            else "Dimensions conservées. Le poids peut augmenter."
-        )
-        text += " Fond blanc en JPEG." if self.format.currentText() == "JPEG" else " Transparence conservée."
-        self.note.setText(text + " Métadonnées retirées.")
-        if self.enlarge:
-            mode = self.upscale_controls.mode.currentData()
-            descriptions = {
-                "photo": "Photographie : Lanczos. La netteté ne recrée pas les détails absents.",
-                "illustration": "Illustration : comparez les contours avec les deux interpolations.",
-                "pixel_art": "Pixel Art : pixels nets, PNG et facteurs entiers uniquement. Aucun lissage.",
-            }
-            self.note.setText(descriptions[mode] + " " + self.note.text())
-        for card in (self.before, self.after):
-            card.canvas.pixel_art = self._pixel_mode
-            card.canvas.update()
-        self.comparison.canvas.pixel_art = self._pixel_mode
-        self.comparison.canvas.update()
-        if self.enlarge and self.factor.currentData() is None and self.keep_ratio.isChecked():
-            self.note.setText(
-                self.note.text()
-                + " La largeur choisie s’applique au lot ; chaque image conserve ses proportions."
-            )
-        extension = SUFFIXES[self.format.currentText().upper()]
-        if self.name_template is not None:
-            try:
-                validate_filename(self.name_template)
-            except ConversionError:
-                pass
-            else:
-                self.name_template = str(Path(self.name_template).with_suffix(extension))
-        self.refresh_name_template()
-        self.schedule_preview()
-
-    def dimensions_changed(self, width_changed):
-        if self.updating:
-            return
-        if self.keep_ratio.isChecked() and self.source:
-            width, height = self.infos[self.source].size
-            self.updating = True
-            if width_changed:
-                self.height_input.setValue(max(1, round(self.width_input.value() * height / width)))
-            else:
-                self.width_input.setValue(max(1, round(self.height_input.value() * width / height)))
-            self.updating = False
-        self.options_changed()
-
-    @Slot()
-    def store_name(self):
-        name = self.filename.text()
-        self.name_template = None if name == self.default_name_template() else name
-        self.update_name_example()
-
-    def default_name_template(self):
-        source = self.source or Path("image.png")
-        size = (
-            self.infos[source].size if self.source else (self.width_input.value(), self.height_input.value())
-        )
-        proposed = suggested_name(source, self.options(), size)
-        return "[original name]" + proposed[len(source.stem) :]
-
-    def refresh_name_template(self):
-        self.filename.setText(
-            self.default_name_template() if self.name_template is None else self.name_template
-        )
-        self.update_name_example()
-
     def output_name(self, source, options=None):
-        options = options or self.options()
-        if self.name_template is None:
-            return self.proposed_name(source, options)
-        return expand_name_template(source, self.name_template, options.output_format)
-
-    def update_name_example(self):
-        try:
-            if self.source:
-                name = self.output_name(self.source)
-                self.name_example.setText(f"Exemple : {name}")
-            else:
-                name = expand_name_template(
-                    Path("photo.png"), self.filename.text(), self.options().output_format
-                )
-                self.name_example.setText(f"Exemple : {name}")
-        except ConversionError as exc:
-            self.name_example.setText(str(exc))
+        return self.output.output_name(source, self.infos[source].size, options)
 
     def proposed_name(self, source, options=None):
         return suggested_name(source, options or self.options(), self.infos[source].size)
@@ -559,7 +346,7 @@ class ProcessingPage(QWidget):
     def start_export(self):
         if self.job or not self.sources:
             return
-        self.store_name()
+        self.output.store_name()
         options = self.options()
         try:
             if len(self.sources) == 1:
@@ -571,7 +358,7 @@ class ProcessingPage(QWidget):
                     self,
                     "Enregistrer l’image",
                     str(source.parent / name),
-                    f"{self.format.currentText()} ({' '.join('*' + e for e in extensions)})",
+                    f"{self.output.format.currentText()} ({' '.join('*' + e for e in extensions)})",
                     options=QFileDialog.Option.DontConfirmOverwrite,
                 )
                 if not filename:
@@ -584,7 +371,7 @@ class ProcessingPage(QWidget):
                 if destination.suffix.lower() not in extensions:
                     raise ConversionError(
                         f"l’extension {destination.suffix} ne correspond pas au format "
-                        f"{self.format.currentText()}. Utilisez {' ou '.join(extensions)}."
+                        f"{self.output.format.currentText()}. Utilisez {' ou '.join(extensions)}."
                     )
                 if destination.exists():
                     raise ConversionError(
@@ -679,7 +466,6 @@ class ProcessingPage(QWidget):
         self.job = None
         self.drop_zone.setEnabled(True)
         self.settings_panel.setEnabled(True)
-        self.quality.setEnabled(self.format.currentText() != "PNG")
         self.export.setEnabled(bool(self.sources))
         self.cancel.hide()
         self.busy_changed.emit(False)
