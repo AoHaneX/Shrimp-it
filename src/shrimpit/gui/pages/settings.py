@@ -21,10 +21,13 @@ from shrimpit.preferences import boolean_setting, integer_setting
 
 class SettingsPage(QWidget):
     animation_changed = Signal(bool)
+    quality_changed = Signal(int)
+    scale_changed = Signal(int)
 
     def __init__(self, settings):
         super().__init__()
         self.setObjectName("page")
+        self.settings = settings
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 28, 28, 28)
         layout.setSpacing(24)
@@ -42,7 +45,9 @@ class SettingsPage(QWidget):
         form.addRow("Qualité de compression", self.quality)
         form.addRow("Facteur d’agrandissement", self.scale)
         box.addLayout(form)
-        box.addWidget(label("Ces valeurs seront utilisées au prochain lancement.", "muted"))
+        box.addWidget(
+            label("Ces valeurs s’appliquent aussitôt aux pages Compression et Agrandissement.", "muted")
+        )
         self.animation = QCheckBox("Animer l’ouverture du menu")
         self.animation.setChecked(boolean_setting(settings, "animation"))
         box.addWidget(self.animation)
@@ -55,7 +60,8 @@ class SettingsPage(QWidget):
         self.notifications.toggled.connect(lambda value: settings.setValue("notifications", value))
         box.addWidget(self.notifications)
         self.quality.valueChanged.connect(lambda value: settings.setValue("quality", value))
-        self.scale.currentIndexChanged.connect(lambda: settings.setValue("scale", self.scale.currentData()))
+        self.quality.valueChanged.connect(self.quality_changed)
+        self.scale.currentIndexChanged.connect(self.store_scale)
         self.animation.toggled.connect(lambda value: settings.setValue("animation", value))
         self.animation.toggled.connect(self.animation_changed)
         layout.addWidget(card)
@@ -76,6 +82,11 @@ class SettingsPage(QWidget):
         self.logs.clicked.connect(self.open_logs)
         layout.addWidget(self.logs)
         layout.addStretch()
+
+    def store_scale(self):
+        scale = self.scale.currentData()
+        self.settings.setValue("scale", scale)
+        self.scale_changed.emit(scale)
 
     def open_logs(self):
         folder = log_directory()

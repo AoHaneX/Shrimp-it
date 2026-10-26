@@ -75,6 +75,8 @@ class MainWindow(QMainWindow):
         self.sidebar.selected.connect(self.navigate)
         self.home.navigate.connect(self.navigate)
         self.preferences.animation_changed.connect(self.set_animation)
+        self.preferences.quality_changed.connect(self.compression.output.quality.setValue)
+        self.preferences.scale_changed.connect(self.enlargement.output.set_default_scale)
         self.set_animation(boolean_setting(self.settings, "animation"))
         for page in (self.compression, self.enlargement):
             page.busy_changed.connect(lambda busy, source=page: self.set_busy(source, busy))

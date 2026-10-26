@@ -370,12 +370,16 @@ class ProcessingPage(QWidget):
             if len(self.sources) == 1:
                 source = self.sources[0]
                 name = self.output_name(source, options)
-                validate_filename(name)
+                # Like a batch: reuse the last output folder and propose a free numbered name.
+                folder = Path(self.output_folder(source.parent))
+                if not folder.is_dir():
+                    folder = source.parent
+                suggestion = export_plan([source], folder, {source: name}, options)[0][1]
                 extensions = sorted(EXTENSIONS[options.output_format])
                 filename, _ = QFileDialog.getSaveFileName(
                     self,
                     "Enregistrer l’image",
-                    str(source.parent / name),
+                    str(suggestion),
                     f"{self.output.format.currentText()} ({' '.join('*' + e for e in extensions)})",
                     options=QFileDialog.Option.DontConfirmOverwrite,
                 )
@@ -398,11 +402,7 @@ class ProcessingPage(QWidget):
                     )
                 plan = [(source, destination)]
             else:
-                initial = (
-                    str(self.settings.value("output_folder", str(self.sources[0].parent)))
-                    if self.settings
-                    else str(self.sources[0].parent)
-                )
+                initial = self.output_folder(self.sources[0].parent)
                 folder = QFileDialog.getExistingDirectory(self, "Choisir le dossier de sortie", initial)
                 if not folder:
                     return
@@ -425,6 +425,10 @@ class ProcessingPage(QWidget):
         self.status.setText("Traitement en cours…")
         self.busy_changed.emit(True)
         self.job.start()
+
+    def output_folder(self, default):
+        """Return the folder of the previous export, or the given default."""
+        return str(self.settings.value("output_folder", str(default))) if self.settings else str(default)
 
     @Slot(object, object, str)
     def item_done(self, source, result, error):

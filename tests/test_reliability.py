@@ -2,6 +2,7 @@
 
 import logging
 import time
+from pathlib import Path
 from threading import Event
 
 import pytest
@@ -188,6 +189,32 @@ def test_close_waits_for_worker_and_then_closes(
     assert not page.preview_timer.isActive()
     if export:
         assert (tmp_path / "out.jpg").is_file()
+
+
+def test_default_settings_apply_to_open_pages(window):
+    window.preferences.quality.setValue(64)
+    window.preferences.scale.setCurrentIndex(1)
+    assert window.compression.output.quality.value() == 64
+    assert window.enlargement.output.factor.currentData() == 3
+
+
+def test_single_export_proposes_a_free_name_in_the_last_folder(window, source, tmp_path, monkeypatch):
+    folder = tmp_path / "exports"
+    folder.mkdir()
+    (folder / "photo-min.jpg").write_bytes(b"keep me")
+    window.settings.setValue("output_folder", str(folder))
+    suggestions = []
+
+    def save_dialog(parent, title, suggestion, *args, **kwargs):
+        suggestions.append(Path(suggestion))
+        return "", ""
+
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", save_dialog)
+    page = window.compression
+    page.add_files([source])
+    page.start_export()
+    assert suggestions == [folder / "photo-min-2.jpg"]
+    assert page.job is None
 
 
 def test_logs_are_local_and_bounded(tmp_path, monkeypatch):
