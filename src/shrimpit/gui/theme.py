@@ -38,7 +38,7 @@ def icon(name: str, color: str = "#26d6ff") -> QIcon:
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
     painter.setPen(QPen(QColor(color), 4, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
-    if name in {"image", "eye"}:
+    if name == "image":
         painter.drawRoundedRect(QRectF(10, 10, 44, 44), 3, 3)
         painter.drawEllipse(QPointF(41, 23), 4, 4)
         painter.drawPolyline(

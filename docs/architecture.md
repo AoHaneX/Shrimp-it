@@ -18,7 +18,6 @@ Shrimpit/
 │   ├── verify_compression.py Mesure des sorties de compression
 │   └── build_preview_examples.py Régénération des exemples avant/après
 ├── .github/workflows/        Contrôles GitHub Actions sous Windows
-├── design/archive/           Ancien décor conservé hors de l’application
 ├── tests/                    Tests du moteur et de l’interface
 └── src/shrimpit/
     ├── __main__.py           Point d’entrée
@@ -137,10 +136,10 @@ métadonnées, jamais d’image ni de miniature. Les dates sont en UTC.
 
 ## Assets
 
-- `backgrounds/` : `ocean.png` et `sidebar-shrimpy.png`. L’ancien fond opaque est conservé dans
-  `design/archive/` et n’est pas embarqué dans le paquet.
-- `icons/` : `home`, `image`, `expand`, `history` et `settings`. Les marges transparentes sont compensées
-  au rendu ; si un PNG manque, un dessin Qt simple le remplace.
+- `backgrounds/` : `ocean.png` (pixel art dessiné sur une grille de 4 pixels, réduit de moitié au plus
+  proche voisin sans perte) et `sidebar-shrimpy.png`.
+- `icons/` : `home`, `image`, `expand`, `history` et `settings`, en carrés de 256 px. Les marges
+  transparentes sont compensées au rendu ; si un PNG manque, un dessin Qt simple le remplace.
 - `branding/shrimpy.png`, `animations/*.gif` et `sounds/finish.ogg`.
 - `examples/` : aperçus de démonstration, régénérables avec `scripts/build_preview_examples.py`
   (voir [leur documentation](../src/shrimpit/assets/examples/README.md)).

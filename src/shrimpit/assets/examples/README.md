@@ -16,7 +16,8 @@ Les tailles de fichiers et dimensions affichées proviennent des fichiers prése
 
 ## Provenance
 
-Illustration source créée le 11 octobre 2026 avec l’outil intégré **imagegen**, puis préparation
+Illustration source générée le 11 octobre 2026 avec le générateur d’images d’OpenAI (outil
+**imagegen**), puis préparation
 des exemples avec Pillow et les fonctions `convert_image` / `upscale_image` de Shrimp'It.
 L’application reste un logiciel de traitement local sans IA : cette génération a uniquement servi
 à créer la ressource graphique incluse dans le projet.
