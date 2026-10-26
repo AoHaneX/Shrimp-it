@@ -19,7 +19,7 @@ Shrimpit/
 │   ├── build_windows.ps1     Version autonome : PyInstaller, autotest, ZIP et installateur
 │   └── build_preview_examples.py Régénération des exemples avant/après
 ├── packaging/                Recette PyInstaller, lanceur et script Inno Setup
-├── .github/workflows/        Contrôles GitHub Actions sous Windows
+├── .github/workflows/        Contrôles à chaque push et audit de sécurité hebdomadaire
 ├── tests/                    Tests du moteur et de l’interface
 └── src/shrimpit/
     ├── __main__.py           Point d’entrée

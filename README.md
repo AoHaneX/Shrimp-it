@@ -1,5 +1,7 @@
 # Shrimp'It
 
+[![Checks](https://github.com/AoHaneX/Shrimp-it/actions/workflows/checks.yml/badge.svg)](https://github.com/AoHaneX/Shrimp-it/actions/workflows/checks.yml)
+
 Application de bureau pour **compresser, convertir et agrandir des images localement**, avec une interface océanique en pixel art.
 
 Projet personnel développé dans l’univers **ReefKit**, dans le cadre de mon parcours de développeur Python junior. Il me permet de travailler la séparation entre interface et traitement d’images, les tests et la distribution d’une application. Version actuelle : **0.5.0**, destinée à Windows.
@@ -104,7 +106,7 @@ Les outils de sécurité sont facultatifs ; la recherche de vulnérabilités né
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\security.ps1
 ```
 
-Le [workflow GitHub Actions](.github/workflows/checks.yml) prévoit les contrôles sur Windows avec Python 3.11 et 3.13.
+Le [workflow Checks](.github/workflows/checks.yml) lance ces contrôles et Bandit sous Windows avec Python 3.11 et 3.13, puis installe la wheel construite dans un environnement vierge et lance son autotest. La recherche de vulnérabilités ([workflow Security audit](.github/workflows/security.yml)) tourne chaque lundi et peut être lancée à la main : une faille publiée dans une dépendance est signalée sans bloquer les autres modifications.
 
 ### Version Windows autonome
 
