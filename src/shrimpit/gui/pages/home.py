@@ -76,9 +76,14 @@ class HomePage(QWidget):
             self.cards.addWidget(card, 1)
         layout.addLayout(self.cards)
         layout.addStretch(1)
-        layout.addWidget(
-            label("100 % local   ·   Vos originaux sont conservés   ·   JPEG, PNG et WebP", "muted")
+        # Stretches centre the dark plate under the cards.
+        footer = QHBoxLayout()
+        footer.addStretch()
+        footer.addWidget(
+            label("100 % local   ·   Vos originaux sont conservés   ·   JPEG, PNG et WebP", "footnote", False)
         )
+        footer.addStretch()
+        layout.addLayout(footer)
 
     def resizeEvent(self, event):
         self.cards.setDirection(

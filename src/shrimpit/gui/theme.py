@@ -122,6 +122,7 @@ def stylesheet(font: str) -> str:
     QFrame#actionBar {{ background: rgba(2, 16, 30, 235); border-top: 1px solid #164969; }}
     QLabel#section {{ font-size: 19px; font-weight: 600; }}
     QLabel#muted {{ color: #acbce4; }}
+    QLabel#footnote {{ background: rgba(2, 18, 34, 215); border-radius: 8px; padding: 7px 14px; color: #c3d0f0; }}
     QLabel#cyan {{ color: #21dafa; font-weight: 600; }}
     QFrame#panel {{ background: rgba(2, 20, 38, 218); border: 1px solid #164969; border-radius: 15px; }}
     QFrame#preview {{ background: rgba(17, 44, 73, 225); border: 1px solid #204866; border-radius: 11px; }}

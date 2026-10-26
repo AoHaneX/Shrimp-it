@@ -136,7 +136,7 @@ class ProgressPage(QWidget):
             title = "Vos images sont prêtes !"
         self.heading.setText(title)
         self.description.setText(
-            "Les fichiers ont été enregistrés localement. Aucun téléchargement supplémentaire n’est nécessaire."
+            "Les fichiers ont été enregistrés dans le dossier choisi."
             if summary["successes"]
             else "Aucun fichier n’a été enregistré. Consultez le bilan ci-dessous."
         )

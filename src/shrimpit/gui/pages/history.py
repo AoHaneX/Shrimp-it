@@ -97,8 +97,7 @@ class HistoryDetails(QDialog):
         body.addWidget(
             label(
                 f"{operation} · {local_date(entry['created_at'])}\n"
-                f"Avant : {readable_size(entry['input_bytes'])} → Après : {readable_size(entry['output_bytes'])}\n"
-                f"Lot : {batch['id']}",
+                f"Avant : {readable_size(entry['input_bytes'])} → Après : {readable_size(entry['output_bytes'])}",
                 "muted",
             )
         )

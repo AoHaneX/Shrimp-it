@@ -8,7 +8,7 @@ from PIL import Image
 
 from shrimpit.engine import ConversionError, upscale_image
 from shrimpit.gui.workers import ExportJob
-from shrimpit.processing import Options, export_plan, suggested_name
+from shrimpit.processing import Options, export_plan, readable_size, suggested_name
 
 
 @pytest.mark.parametrize("size", [(0, 10), (10, -1), (True, 20), (2.5, 10), [20, 20], (20,)])
@@ -88,3 +88,10 @@ def test_batch_cancel_finishes_current_image(tmp_path, monkeypatch):
     assert not second.exists()
     assert job.completed == 1
     assert job.successes == 1
+
+
+@pytest.mark.parametrize(
+    "count,text", [(999, "1,0 Ko"), (999_949, "999,9 Ko"), (999_999, "1,00 Mo"), (2_500_000, "2,50 Mo")]
+)
+def test_readable_size_never_shows_a_thousand_kilobytes(count, text):
+    assert readable_size(count) == text

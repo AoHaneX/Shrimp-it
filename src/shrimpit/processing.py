@@ -143,6 +143,7 @@ def expand_name_template(source: Path, template: str, output_format: str) -> str
 
 
 def readable_size(count: int) -> str:
-    if count >= 1_000_000:
+    # Switch at 999 950 bytes, which would otherwise round to "1000,0 Ko".
+    if count >= 999_950:
         return f"{count / 1_000_000:.2f} Mo".replace(".", ",")
     return f"{count / 1_000:.1f} Ko".replace(".", ",")
