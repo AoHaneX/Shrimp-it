@@ -3,7 +3,7 @@
 from PySide6.QtCore import QSettings, QTimer
 from PySide6.QtWidgets import QHBoxLayout, QMainWindow, QMessageBox, QScrollArea, QStackedWidget
 
-from shrimpit.gui.navigation import Sidebar
+from shrimpit.gui.navigation import Page, Sidebar
 from shrimpit.gui.notifications import CompletionNotifier
 from shrimpit.gui.pages import HomePage, ProcessingPage, SettingsPage
 from shrimpit.gui.pages.history import HistoryPage
@@ -42,14 +42,15 @@ class MainWindow(QMainWindow):
         self.close_pending = False
         self.notifier = CompletionNotifier(self, settings=self.settings)
         self.notifier.activated.connect(self.show_results)
-        for page in (
-            self.home,
-            self.compression,
-            self.enlargement,
-            self.preferences,
-            self.processing,
-            self.history,
-        ):
+        pages = {
+            Page.HOME: self.home,
+            Page.COMPRESSION: self.compression,
+            Page.ENLARGEMENT: self.enlargement,
+            Page.SETTINGS: self.preferences,
+            Page.PROGRESS: self.processing,
+            Page.HISTORY: self.history,
+        }
+        for _, page in sorted(pages.items()):
             scroll = QScrollArea()
             scroll.setWidgetResizable(True)
             scroll.setWidget(page)
@@ -69,7 +70,7 @@ class MainWindow(QMainWindow):
             return
         self.stack.setCurrentIndex(index)
         self.sidebar.set_page(index)
-        if index == 5:
+        if index == Page.HISTORY:
             self.history.reload()
 
     def set_animation(self, enabled):
@@ -81,9 +82,9 @@ class MainWindow(QMainWindow):
         if busy:
             source.job.history_store = self.history_store
             self.processing_source = source
-            self.sidebar.set_page(2 if source.enlarge else 1)
+            self.sidebar.set_page(self.tool_page(source))
             self.processing.begin(source.job, source.enlarge, "smooth" if source.enlarge else "pixel")
-            self.stack.setCurrentIndex(4)
+            self.stack.setCurrentIndex(Page.PROGRESS)
         else:
             self.processing.finish(source.last_export)
             if source.last_export.get("history_errors"):
@@ -97,8 +98,8 @@ class MainWindow(QMainWindow):
 
     def show_results(self):
         if self.processing_source:
-            self.stack.setCurrentIndex(4)
-            self.sidebar.set_page(2 if self.processing_source.enlarge else 1)
+            self.stack.setCurrentIndex(Page.PROGRESS)
+            self.sidebar.set_page(self.tool_page(self.processing_source))
         if self.isMinimized():
             self.showNormal()
         else:
@@ -111,7 +112,11 @@ class MainWindow(QMainWindow):
             self.processing_source.cancel_export()
 
     def return_to_images(self):
-        self.navigate(2 if self.processing_source is self.enlargement else 1)
+        self.navigate(self.tool_page(self.processing_source))
+
+    @staticmethod
+    def tool_page(source):
+        return Page.ENLARGEMENT if source.enlarge else Page.COMPRESSION
 
     def closeEvent(self, event):
         pages = (self.compression, self.enlargement)

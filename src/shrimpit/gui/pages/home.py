@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from shrimpit.gui.navigation import Page
 from shrimpit.gui.theme import icon
 from shrimpit.gui.widgets import label, panel
 
@@ -24,8 +25,7 @@ class HomePage(QWidget):
         layout.setSpacing(24)
         layout.addSpacing(20)
         welcome = label("Bienvenue sur", "hero")
-        brand = label("Shrimp'It", "hero")
-        brand.setStyleSheet("color: #1ad9fa; font-size: 66px;")
+        brand = label("Shrimp'It", "heroBrand")
         tagline = label("Vos images, à la bonne taille.", "section")
         description = label(
             "Compressez vos fichiers pour les partager plus facilement,\n"
@@ -44,14 +44,14 @@ class HomePage(QWidget):
                 "Réduisez le poids de vos images et choisissez leur format de sortie.",
                 "Compresser des images  →",
                 "image",
-                1,
+                Page.COMPRESSION,
             ),
             (
                 "Agrandissement",
                 "Agrandissez vos images avec un facteur ou des dimensions personnalisées.",
                 "Agrandir des images  →",
                 "expand",
-                2,
+                Page.ENLARGEMENT,
             ),
         ]:
             card, box = panel()

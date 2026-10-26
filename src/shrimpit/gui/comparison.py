@@ -145,13 +145,6 @@ class ComparisonPreview(QWidget):
         self.slider.setValue(50)
         self.slider.setAccessibleName("Position de la séparation avant après")
         self.slider.setToolTip("0 : tout après · 100 : tout avant")
-        self.slider.setStyleSheet(
-            "QSlider::groove:horizontal { background: #163c5a; height: 6px; border-radius: 3px; }"
-            "QSlider::sub-page:horizontal { background: #16c7ea; border-radius: 3px; }"
-            "QSlider::handle:horizontal { background: #20dafa; border: 1px solid #93eeff;"
-            " width: 14px; margin: -5px 0; border-radius: 7px; }"
-            "QSlider::handle:horizontal:disabled { background: #43617a; border-color: #43617a; }"
-        )
         self.slider.valueChanged.connect(self.canvas.set_position)
         self.canvas.position_changed.connect(self.slider.setValue)
         layout.addWidget(self.slider)

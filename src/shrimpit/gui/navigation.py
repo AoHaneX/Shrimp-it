@@ -1,5 +1,7 @@
 """Animated sidebar navigation independent of image processing."""
 
+from enum import IntEnum
+
 from PySide6.QtCore import Property, QEasingCurve, QPropertyAnimation, QSize, Qt, Signal
 from PySide6.QtGui import QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
@@ -11,6 +13,26 @@ from shrimpit.resources import (
     SIDEBAR_COLLAPSED_WIDTH,
     SIDEBAR_EXPANDED_WIDTH,
     SIDEBAR_MASCOT,
+)
+
+
+class Page(IntEnum):
+    """Position of each page in the main window's stack."""
+
+    HOME = 0
+    COMPRESSION = 1
+    ENLARGEMENT = 2
+    SETTINGS = 3
+    PROGRESS = 4
+    HISTORY = 5
+
+
+ENTRIES = (
+    ("Accueil", "home", Page.HOME),
+    ("Compression", "image", Page.COMPRESSION),
+    ("Agrandissement", "expand", Page.ENLARGEMENT),
+    ("Historique", "history", Page.HISTORY),
+    ("Paramètres", "settings", Page.SETTINGS),
 )
 
 
@@ -61,17 +83,12 @@ class Sidebar(OceanBackground):
             )
         )
         self.brand = label("Shrimp'It", "brand", False)
-        self.brand.setStyleSheet("font-size: 32px;")
         branding.addWidget(self.logo)
         branding.addWidget(self.brand, 1)
         layout.addWidget(self.brand_header)
         layout.addSpacing(26)
-        self.names = ["Accueil", "Compression", "Agrandissement", "Historique", "Paramètres"]
-        self.page_indices = [0, 1, 2, 5, 3]
         self.buttons = []
-        for name, symbol, index in zip(
-            self.names, ["home", "image", "expand", "history", "settings"], self.page_indices
-        ):
+        for name, symbol, page in ENTRIES:
             button = QPushButton("  " + name)
             button.setObjectName("nav")
             button.setCheckable(True)
@@ -80,7 +97,7 @@ class Sidebar(OceanBackground):
             button.setFixedHeight(52)
             button.setToolTip(name)
             button.setAccessibleName(name)
-            button.clicked.connect(lambda checked=False, i=index: self.selected.emit(i))
+            button.clicked.connect(lambda checked=False, p=page: self.selected.emit(p))
             self.buttons.append(button)
             layout.addWidget(button)
         layout.addStretch()
@@ -88,7 +105,7 @@ class Sidebar(OceanBackground):
         self.animation.setDuration(190)
         self.animation.setEasingCurve(QEasingCurve.Type.InOutCubic)
         self.animation.finished.connect(self.restore_labels)
-        self.set_page(0)
+        self.set_page(Page.HOME)
 
     def get_width(self):
         return self.width()
@@ -110,9 +127,9 @@ class Sidebar(OceanBackground):
 
     def restore_labels(self):
         self.brand_header.setVisible(self.expanded)
-        for button, name in zip(self.buttons, self.names):
+        for button, (name, _, _) in zip(self.buttons, ENTRIES):
             button.setText("  " + name if self.expanded else "")
 
     def set_page(self, index):
-        for i, button in zip(self.page_indices, self.buttons):
-            button.setChecked(i == index)
+        for button, (_, _, page) in zip(self.buttons, ENTRIES):
+            button.setChecked(page == index)

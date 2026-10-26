@@ -4,12 +4,21 @@ import ctypes
 import logging
 import sys
 
+from PySide6.QtCore import QLibraryInfo, QLocale, QTranslator
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from shrimpit.diagnostics import configure_logging
 from shrimpit.gui.main_window import MainWindow
 from shrimpit.resources import SHRIMPY_ICON
+
+
+def install_french_translation(app):
+    """Translate Qt's standard buttons (Yes, No, Cancel) to match the French interface."""
+    translator = QTranslator(app)
+    folder = QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)
+    if translator.load(QLocale(QLocale.Language.French), "qtbase", "_", folder):
+        app.installTranslator(translator)
 
 
 def main() -> int:
@@ -24,6 +33,7 @@ def main() -> int:
             raise OSError(f"Windows application identity failed: {result}")
 
     app = QApplication(sys.argv)
+    install_french_translation(app)
 
     def report_error(error_type, error, traceback):
         logging.getLogger("shrimpit").error(

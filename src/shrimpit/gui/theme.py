@@ -114,7 +114,8 @@ def stylesheet(font: str) -> str:
     QLabel {{ background: transparent; border: none; }}
     QLabel#title {{ font-family: '{font}'; font-size: 34px; font-weight: bold; }}
     QLabel#hero {{ font-family: '{font}'; font-size: 50px; font-weight: bold; }}
-    QLabel#brand {{ font-family: '{font}'; font-size: 28px; font-weight: bold; }}
+    QLabel#heroBrand {{ font-family: '{font}'; font-size: 66px; font-weight: bold; color: #1ad9fa; }}
+    QLabel#brand {{ font-family: '{font}'; font-size: 32px; font-weight: bold; }}
     QLabel#cardTitle {{ font-family: '{font}'; font-size: 29px; font-weight: bold; }}
     QLabel#status {{ background: rgba(2, 18, 34, 235); border: 1px solid #163d57; border-radius: 7px; padding: 11px; color: #bfcdec; }}
     QLabel#section {{ font-size: 19px; font-weight: 600; }}
@@ -153,4 +154,17 @@ def stylesheet(font: str) -> str:
     QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
     QToolTip {{ background: #08253d; color: #d8eeff; border: 1px solid #2d718b; }}
     QCheckBox {{ spacing: 8px; }}
+    QDialog, QMessageBox, QWidget#historyDetails {{ background: #061d30; }}
+    QMessageBox QPushButton {{ min-width: 80px; }}
+    QSlider::groove:horizontal {{ background: #163c5a; height: 6px; border-radius: 3px; }}
+    QSlider::sub-page:horizontal {{ background: #16c7ea; border-radius: 3px; }}
+    QSlider::handle:horizontal {{ background: #20dafa; border: 1px solid #93eeff; width: 14px; margin: -5px 0; border-radius: 7px; }}
+    QSlider::handle:horizontal:disabled {{ background: #43617a; border-color: #43617a; }}
+    QTreeWidget {{ background: #061d30; border: 1px solid #164969; border-radius: 10px; }}
+    QTreeWidget::item {{ padding: 8px; }}
+    QTreeWidget::item:selected {{ background: #114f70; }}
+    QHeaderView::section {{ background: #102b48; padding: 10px; border: none; }}
+    QScrollBar:horizontal {{ background: #061d30; height: 10px; }}
+    QScrollBar::handle:horizontal {{ background: #235b78; min-width: 24px; border-radius: 4px; }}
+    QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ width: 0; }}
     """

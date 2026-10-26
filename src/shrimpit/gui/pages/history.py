@@ -68,14 +68,12 @@ class HistoryDetails(QDialog):
         self.page, self.batch, self.entry = page, batch, entry
         self.token = uuid4().hex
         self.setWindowTitle("Détails du traitement")
-        self.setStyleSheet("QDialog { background: #061d30; }")
         self.resize(740, 720)
         layout = QVBoxLayout(self)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         content = QWidget()
         content.setObjectName("historyDetails")
-        content.setStyleSheet("QWidget#historyDetails { background: #061d30; }")
         body = QVBoxLayout(content)
         self.previews = {}
         self.open_buttons = {}
@@ -174,15 +172,6 @@ class HistoryPage(QWidget):
         self.tree.setWordWrap(True)
         self.tree.header().setMinimumSectionSize(200)
         self.tree.setMinimumHeight(350)
-        self.tree.setStyleSheet(
-            "QTreeWidget { background: #061d30; border: 1px solid #164969; border-radius: 10px; }"
-            "QTreeWidget::item { padding: 8px; }"
-            "QTreeWidget::item:selected { background: #114f70; }"
-            "QHeaderView::section { background: #102b48; padding: 10px; border: none; }"
-            "QScrollBar:horizontal { background: #061d30; height: 10px; }"
-            "QScrollBar::handle:horizontal { background: #235b78; min-width: 24px; border-radius: 4px; }"
-            "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }"
-        )
         for column in (0, 1):
             self.tree.header().setSectionResizeMode(column, QHeaderView.ResizeMode.Stretch)
         self.tree.header().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
