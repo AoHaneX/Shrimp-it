@@ -119,7 +119,7 @@ docs/               Architecture et captures d’écran
 
 L’[architecture et les choix techniques](docs/architecture.md) décrivent l’organisation du code, les modes d’agrandissement, les grands exports et le format de l’historique.
 
-L’historique est enregistré dans `%LOCALAPPDATA%\BlueShrimp\Shrimpit\history.json` et les journaux dans `%LOCALAPPDATA%\Shrimpit\logs`. Ils peuvent contenir des chemins personnels : ne les joignez pas publiquement sans les relire. Pour signaler un problème, indiquez la version de Python, les étapes de reproduction et utilisez une image non confidentielle.
+L’historique (`history.json`) et les journaux (`logs\`) sont enregistrés dans `%LOCALAPPDATA%\BlueShrimp\Shrimpit`, les préférences dans la clé de registre `HKEY_CURRENT_USER\Software\BlueShrimp\Shrimpit`. Supprimer ce dossier et cette clé remet l’application à zéro sans toucher aux images. Ces fichiers peuvent contenir des chemins personnels : ne les joignez pas publiquement sans les relire. Pour signaler un problème, indiquez la version de Python, les étapes de reproduction et utilisez une image non confidentielle.
 
 ## Pistes d’évolution
 

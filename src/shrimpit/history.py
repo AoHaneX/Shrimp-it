@@ -15,6 +15,7 @@ from threading import RLock
 from uuid import uuid4
 
 from shrimpit.processing import options_for_source
+from shrimpit.resources import data_directory
 
 MAX_HISTORY_BYTES = 32 * 1024 * 1024
 LOCK_TIMEOUT = 2.0
@@ -25,8 +26,7 @@ def timestamp():
 
 
 def default_history_path():
-    base = Path(os.environ.get("LOCALAPPDATA", Path.home() / ".local" / "share"))
-    return base / "BlueShrimp" / "Shrimpit" / "history.json"
+    return data_directory() / "history.json"
 
 
 class HistoryError(Exception):

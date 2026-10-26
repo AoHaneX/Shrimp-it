@@ -1,5 +1,6 @@
-"""Central paths for packaged assets."""
+"""Central paths for packaged assets and local user data."""
 
+import os
 from pathlib import Path
 
 ASSETS = Path(__file__).resolve().parent / "assets"
@@ -15,3 +16,9 @@ PROCESSING_ANIMATIONS = {
 
 SIDEBAR_EXPANDED_WIDTH = 320
 SIDEBAR_COLLAPSED_WIDTH = 68
+
+
+def data_directory() -> Path:
+    """Folder holding the history and the logs, removable to reset the application."""
+    base = Path(os.environ.get("LOCALAPPDATA", str(Path.home() / ".local" / "share")))
+    return base / "BlueShrimp" / "Shrimpit"

@@ -1,14 +1,14 @@
 """Local rotating logs for startup errors and background jobs."""
 
 import logging
-import os
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
+from shrimpit.resources import data_directory
+
 
 def log_directory() -> Path:
-    base = Path(os.environ.get("LOCALAPPDATA", str(Path.home() / ".local/share")))
-    return base / "Shrimpit" / "logs"
+    return data_directory() / "logs"
 
 
 def configure_logging() -> Path | None:

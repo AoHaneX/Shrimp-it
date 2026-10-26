@@ -224,6 +224,7 @@ def test_logs_are_local_and_bounded(tmp_path, monkeypatch):
     logger.handlers.clear()
     try:
         folder = configure_logging()
+        assert folder == tmp_path / "BlueShrimp" / "Shrimpit" / "logs"
         logger.error("Simulated export failure")
         assert "Simulated export failure" in (folder / "shrimpit.log").read_text(encoding="utf-8")
         assert logger.handlers[0].maxBytes == 1_000_000
@@ -232,3 +233,13 @@ def test_logs_are_local_and_bounded(tmp_path, monkeypatch):
         for handler in logger.handlers:
             handler.close()
         logger.handlers[:] = old_handlers
+
+
+def test_taskbar_identity_failure_does_not_stop_startup(monkeypatch, caplog):
+    from types import SimpleNamespace
+
+    import shrimpit.__main__ as entry
+
+    monkeypatch.setattr(entry, "ctypes", SimpleNamespace(windll=SimpleNamespace()))
+    entry.set_taskbar_identity()
+    assert "taskbar identity unavailable" in caplog.text

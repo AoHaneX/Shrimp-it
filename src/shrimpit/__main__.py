@@ -21,16 +21,23 @@ def install_french_translation(app):
         app.installTranslator(translator)
 
 
-def main() -> int:
-    folder = configure_logging()
-    if sys.platform == "win32":
-        # Give Shrimpit its own Windows taskbar identity.
+def set_taskbar_identity():
+    """Group Shrimpit's windows under its own taskbar icon; failing only affects grouping."""
+    try:
         set_app_id = ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID
         set_app_id.argtypes = [ctypes.c_wchar_p]
         set_app_id.restype = ctypes.c_long
         result = set_app_id("BlueShrimp.Shrimpit")
-        if result < 0:
-            raise OSError(f"Windows application identity failed: {result}")
+    except (AttributeError, OSError):
+        result = -1
+    if result < 0:
+        logging.getLogger("shrimpit").warning("Windows taskbar identity unavailable: %s", result)
+
+
+def main() -> int:
+    folder = configure_logging()
+    if sys.platform == "win32":
+        set_taskbar_identity()
 
     app = QApplication(sys.argv)
     install_french_translation(app)
