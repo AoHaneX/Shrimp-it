@@ -1,7 +1,6 @@
 """Regression checks for failures found during the desktop audit."""
 
 import logging
-import time
 from pathlib import Path
 from threading import Event
 
@@ -15,32 +14,6 @@ from shrimpit.engine import ConversionError, convert_image
 from shrimpit.filenames import validate_filename
 from shrimpit.gui.main_window import MainWindow
 from shrimpit.processing import Options, export_plan
-
-
-def wait_for(app, condition):
-    deadline = time.monotonic() + 10
-    while not condition() and time.monotonic() < deadline:
-        app.processEvents()
-        time.sleep(0.01)
-    app.processEvents()
-    assert condition()
-
-
-@pytest.fixture
-def window(tmp_path, qt_application):
-    value = MainWindow(QSettings(str(tmp_path / "preferences.ini"), QSettings.Format.IniFormat))
-    value.show()
-    yield value
-    for page in (value.compression, value.enlargement):
-        page.shutting_down = True
-        page.stop_timers()
-        for job in (page.job, page.preview_job):
-            if job:
-                job.requestInterruption()
-                assert job.wait(10000)
-    qt_application.processEvents()
-    value.close()
-    qt_application.processEvents()
 
 
 @pytest.fixture
@@ -128,12 +101,12 @@ def test_deleted_source_does_not_break_custom_dimension_controls(window, source)
     assert "80x40" in page.output.filename.text()
 
 
-def test_clear_list_discards_pending_preview(window, source, qt_application):
+def test_clear_list_discards_pending_preview(wait_for, window, source, qt_application):
     page = window.compression
     page.add_files([source])
     page.start_preview()
     page.clear.click()
-    wait_for(qt_application, lambda: page.preview_job is None)
+    wait_for(lambda: page.preview_job is None)
     assert page.source is None
     assert page.preview_payload is None
     assert not page.export.isEnabled()
@@ -155,7 +128,7 @@ def test_sound_and_notifications_can_be_disabled_live(window, quiet_notification
 
 @pytest.mark.parametrize("export", [False, True])
 def test_close_waits_for_worker_and_then_closes(
-    window, source, tmp_path, monkeypatch, qt_application, export
+    wait_for, window, source, tmp_path, monkeypatch, qt_application, export
 ):
     from shrimpit.gui import workers
 
@@ -184,7 +157,7 @@ def test_close_waits_for_worker_and_then_closes(
         assert window.isVisible()
     finally:
         release.set()
-    wait_for(qt_application, lambda: not window.isVisible())
+    wait_for(lambda: not window.isVisible())
     assert not page.running()
     assert not page.preview_timer.isActive()
     if export:

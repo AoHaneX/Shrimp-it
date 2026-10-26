@@ -4,30 +4,18 @@ import json
 from threading import Event, Thread, Timer
 
 import pytest
-from PIL import Image
 
-from shrimpit.engine import ConversionResult
 from shrimpit.gui.workers import ExportJob
-from shrimpit.history import HistoryError, HistoryStore, timestamp
+from shrimpit.history import HistoryError, HistoryStore
 from shrimpit.processing import Options
 
 
-def record(store, tmp_path, batch="batch", name="photo", created_at=None):
-    source = tmp_path / f"{name}.png"
-    output = tmp_path / f"{name}-min.png"
-    Image.new("RGBA", (12, 8), (80, 120, 220, 90)).save(source)
-    Image.new("RGBA", (12, 8), (80, 120, 220, 90)).save(output)
-    result = ConversionResult(output, source.stat().st_size, output.stat().st_size, (12, 8), (12, 8))
-    store.record(batch, created_at or timestamp(), source, result, Options(output_format="PNG"))
-    return source, output
-
-
-def test_persistence_grouping_sort_and_metadata(tmp_path):
+def test_persistence_grouping_sort_and_metadata(record, tmp_path):
     store = HistoryStore(tmp_path / "history.json")
     assert store.batches() == []
-    first = record(store, tmp_path, "old", "première", "2026-10-10T12:00:00+00:00")
-    record(store, tmp_path, "old", "seconde", "2026-10-10T12:00:00+00:00")
-    record(store, tmp_path, "new", "troisième", "2026-10-11T12:00:00+00:00")
+    first = record(store, "old", "première", "2026-10-10T12:00:00+00:00")
+    record(store, "old", "seconde", "2026-10-10T12:00:00+00:00")
+    record(store, "new", "troisième", "2026-10-11T12:00:00+00:00")
     batches = HistoryStore(store.path).batches()
     assert [batch["id"] for batch in batches] == ["new", "old"]
     entries = batches[1]["images"]
@@ -39,17 +27,17 @@ def test_persistence_grouping_sort_and_metadata(tmp_path):
     assert entries[0]["parameters"]["output_format"] == "PNG"
 
 
-def test_deletions_keep_images_and_remove_empty_batches(tmp_path):
+def test_deletions_keep_images_and_remove_empty_batches(record, tmp_path):
     store = HistoryStore(tmp_path / "history.json")
-    paths = [*record(store, tmp_path, name="one"), *record(store, tmp_path, name="two")]
+    paths = [*record(store, name="one"), *record(store, name="two")]
     original = {path: path.read_bytes() for path in paths}
     entry = store.batches()[0]["images"][0]
     store.delete_entry("batch", entry["id"])
     assert len(store.batches()[0]["images"]) == 1
     store.delete_entry("batch", store.batches()[0]["images"][0]["id"])
     assert store.batches() == []
-    record(store, tmp_path, name="one")
-    record(store, tmp_path, batch="second", name="two")
+    record(store, name="one")
+    record(store, batch="second", name="two")
     store.delete_batch("batch")
     assert len(store.batches()) == 1
     store.clear()
@@ -59,7 +47,7 @@ def test_deletions_keep_images_and_remove_empty_batches(tmp_path):
 
 
 @pytest.mark.parametrize("contents", ["{broken", "[]", '{"version":1,"batches":[{}]}', "\xff"])
-def test_invalid_json_is_preserved_and_recovers(tmp_path, contents):
+def test_invalid_json_is_preserved_and_recovers(record, tmp_path, contents):
     path = tmp_path / "history.json"
     path.write_bytes(contents.encode("latin1"))
     store = HistoryStore(path)
@@ -68,14 +56,14 @@ def test_invalid_json_is_preserved_and_recovers(tmp_path, contents):
     backup = list(tmp_path.glob("history-invalid-*.json"))
     assert len(backup) == 1
     assert backup[0].read_bytes() == contents.encode("latin1")
-    record(store, tmp_path)
+    record(store)
     assert len(HistoryStore(path).batches()) == 1
 
 
 @pytest.mark.parametrize("created_at", ["0001-01-01T00:00:00+00:00", "9999-12-31T23:59:59+00:00"])
-def test_out_of_range_dates_are_preserved_and_recover(tmp_path, created_at):
+def test_out_of_range_dates_are_preserved_and_recover(record, tmp_path, created_at):
     store = HistoryStore(tmp_path / "history.json")
-    record(store, tmp_path)
+    record(store)
     data = json.loads(store.path.read_text(encoding="utf-8"))
     data["batches"][0]["images"][0]["created_at"] = created_at
     store.path.write_text(json.dumps(data), encoding="utf-8")
@@ -84,7 +72,7 @@ def test_out_of_range_dates_are_preserved_and_recover(tmp_path, created_at):
     assert list(tmp_path.glob("history-invalid-*.json"))
 
 
-def test_second_instance_waits_for_the_lock(tmp_path):
+def test_second_instance_waits_for_the_lock(record, tmp_path):
     first = HistoryStore(tmp_path / "history.json")
     second = HistoryStore(first.path)
     holding, release = Event(), Event()
@@ -99,7 +87,7 @@ def test_second_instance_waits_for_the_lock(tmp_path):
     try:
         assert holding.wait(5)
         Timer(0.3, release.set).start()
-        record(second, tmp_path)
+        record(second)
     finally:
         release.set()
         thread.join(5)
@@ -117,9 +105,9 @@ def test_clear_replaces_an_unreadable_history(tmp_path, monkeypatch):
     assert store.batches() == []
 
 
-def test_atomic_write_failure_keeps_previous_history(tmp_path, monkeypatch):
+def test_atomic_write_failure_keeps_previous_history(record, tmp_path, monkeypatch):
     store = HistoryStore(tmp_path / "history.json")
-    record(store, tmp_path)
+    record(store)
     before = store.path.read_bytes()
 
     def fail(*args):
@@ -132,18 +120,18 @@ def test_atomic_write_failure_keeps_previous_history(tmp_path, monkeypatch):
     assert not list(tmp_path.glob(".history-*"))
 
 
-def test_multiple_store_instances_preserve_existing_batches(tmp_path):
+def test_multiple_store_instances_preserve_existing_batches(record, tmp_path):
     first = HistoryStore(tmp_path / "history.json")
     second = HistoryStore(first.path)
     second.batches()
-    record(first, tmp_path, batch="first")
-    record(second, tmp_path, batch="second", name="other")
+    record(first, batch="first")
+    record(second, batch="second", name="other")
     assert len(first.batches()) == 2
 
 
-def test_worker_only_records_success_and_resolves_custom_dimensions(tmp_path):
+def test_worker_only_records_success_and_resolves_custom_dimensions(record, tmp_path):
     store = HistoryStore(tmp_path / "history.json")
-    first, _ = record(store, tmp_path)
+    first, _ = record(store)
     store.clear()
     options = Options(enlarge=True, output_format="PNG", size=(24, 24), keep_ratio=True)
     job = ExportJob([(first, tmp_path / "up.png"), (tmp_path / "absent.png", tmp_path / "fail.png")], options)
@@ -161,9 +149,9 @@ def test_worker_only_records_success_and_resolves_custom_dimensions(tmp_path):
     assert entry["parameters"]["output_size"] == [24, 16]
 
 
-def test_history_failure_does_not_fail_export(tmp_path, monkeypatch):
+def test_history_failure_does_not_fail_export(record, tmp_path, monkeypatch):
     store = HistoryStore(tmp_path / "history.json")
-    source, _ = record(store, tmp_path)
+    source, _ = record(store)
     job = ExportJob([(source, tmp_path / "converted.jpg")], Options())
     job.history_store = store
 
@@ -178,9 +166,9 @@ def test_history_failure_does_not_fail_export(tmp_path, monkeypatch):
     assert (tmp_path / "converted.jpg").is_file()
 
 
-def test_cancelled_batch_keeps_completed_images(tmp_path, monkeypatch):
+def test_cancelled_batch_keeps_completed_images(record, tmp_path, monkeypatch):
     store = HistoryStore(tmp_path / "history.json")
-    source, _ = record(store, tmp_path)
+    source, _ = record(store)
     store.clear()
     job = ExportJob([(source, tmp_path / f"out{i}.png") for i in range(3)], Options(output_format="PNG"))
     job.history_store = store
@@ -190,9 +178,9 @@ def test_cancelled_batch_keeps_completed_images(tmp_path, monkeypatch):
     assert len(store.batches()[0]["images"]) == 1
 
 
-def test_missing_images_preserve_metadata(tmp_path):
+def test_missing_images_preserve_metadata(record, tmp_path):
     store = HistoryStore(tmp_path / "history.json")
-    source, output = record(store, tmp_path)
+    source, output = record(store)
     before = store.batches()
     source.unlink()
     output.unlink()
@@ -200,9 +188,9 @@ def test_missing_images_preserve_metadata(tmp_path):
     assert json.loads(store.path.read_text(encoding="utf-8"))["version"] == 1
 
 
-def test_invalid_parameter_structure_recovers_without_losing_backup(tmp_path):
+def test_invalid_parameter_structure_recovers_without_losing_backup(record, tmp_path):
     store = HistoryStore(tmp_path / "history.json")
-    record(store, tmp_path)
+    record(store)
     data = json.loads(store.path.read_text(encoding="utf-8"))
     data["batches"][0]["images"][0]["parameters"]["upscale"] = None
     store.path.write_text(json.dumps(data), encoding="utf-8")

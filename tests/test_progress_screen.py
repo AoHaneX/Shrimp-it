@@ -1,7 +1,6 @@
 """Check animated exports, result access, and bundled asset paths."""
 
 import os
-import time
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -31,7 +30,7 @@ def test_packaged_assets():
         movie.stop()
 
 
-def test_export_screen_and_open_results(tmp_path, monkeypatch):
+def test_export_screen_and_open_results(wait_for, tmp_path, monkeypatch):
     app = QApplication.instance() or QApplication([])
     window = MainWindow(QSettings(str(tmp_path / "prefs.ini"), QSettings.Format.IniFormat))
     page = window.enlargement
@@ -55,11 +54,7 @@ def test_export_screen_and_open_results(tmp_path, monkeypatch):
         assert window.stack.currentIndex() == 4
         assert window.processing.running
         assert window.processing.movie.state() == QMovie.MovieState.Running
-        deadline = time.monotonic() + 10
-        while page.job and time.monotonic() < deadline:
-            app.processEvents()
-            time.sleep(0.01)
-        assert page.job is None
+        wait_for(lambda: page.job is None)
         assert not window.processing.running
         assert window.processing.movie.state() == QMovie.MovieState.NotRunning
         assert "2 image(s)" in window.processing.current_file.text()

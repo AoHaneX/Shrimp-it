@@ -1,39 +1,12 @@
 """Exercise mode selection through real preview and export workers."""
 
-import time
 from io import BytesIO
 
 import pytest
 from PIL import Image
-from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QFileDialog
 
-from shrimpit.gui.main_window import MainWindow
 from shrimpit.processing import thumbnail
-
-
-def wait_until(app, condition):
-    deadline = time.monotonic() + 10
-    while not condition() and time.monotonic() < deadline:
-        app.processEvents()
-        time.sleep(0.01)
-    app.processEvents()
-    assert condition()
-
-
-@pytest.fixture
-def window(qt_application, tmp_path):
-    widget = MainWindow(QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat))
-    yield widget
-    for page in (widget.compression, widget.enlargement):
-        page.shutting_down = True
-        page.stop_timers()
-        if page.preview_job:
-            assert page.preview_job.wait(10000)
-        if page.job:
-            assert page.job.wait(10000)
-    qt_application.processEvents()
-    widget.close()
 
 
 def test_pixel_mode_limits_controls_and_restores_format(window):
@@ -59,7 +32,7 @@ def test_pixel_mode_limits_controls_and_restores_format(window):
 
 
 @pytest.mark.parametrize("mode", [0, 1, 2])
-def test_mode_used_by_preview_and_batch_export(window, qt_application, tmp_path, monkeypatch, mode):
+def test_mode_used_by_preview_and_batch_export(wait_for, window, qt_application, tmp_path, monkeypatch, mode):
     page = window.enlargement
     page.output.upscale_controls.mode.setCurrentIndex(mode)
     page.output.factor.setCurrentIndex(1)
@@ -71,13 +44,13 @@ def test_mode_used_by_preview_and_batch_export(window, qt_application, tmp_path,
         image.save(path)
         sources.append(path)
     page.add_files(sources)
-    wait_until(qt_application, lambda: page.preview_payload is not None and page.preview_job is None)
+    wait_for(lambda: page.preview_payload is not None and page.preview_job is None)
     preview = page.preview_payload[1]
     folder = tmp_path / "export"
     folder.mkdir()
     monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *a, **kw: str(folder))
     page.start_export()
-    wait_until(qt_application, lambda: page.job is None)
+    wait_for(lambda: page.job is None)
     assert page.last_export["successes"] == 2
     assert not page.last_export["errors"]
     target = folder / "source-1-x3.png"
@@ -90,17 +63,17 @@ def test_mode_used_by_preview_and_batch_export(window, qt_application, tmp_path,
     assert page.output.format.isEnabled() == (mode != 2)
 
 
-def test_sharpness_controls_trigger_new_preview(window, qt_application, tmp_path):
+def test_sharpness_controls_trigger_new_preview(wait_for, window, qt_application, tmp_path):
     page = window.enlargement
     source = tmp_path / "source.png"
     image = Image.new("RGB", (16, 16), (60, 60, 60))
     image.paste((180, 180, 180), (8, 0, 16, 16))
     image.save(source)
     page.add_files([source])
-    wait_until(qt_application, lambda: page.preview_payload is not None and page.preview_job is None)
+    wait_for(lambda: page.preview_payload is not None and page.preview_job is None)
     sharpened = page.preview_payload[1]
     page.output.upscale_controls.sharpen.setChecked(False)
-    wait_until(qt_application, lambda: page.preview_payload is not None and page.preview_job is None)
+    wait_for(lambda: page.preview_payload is not None and page.preview_job is None)
     plain = page.preview_payload[1]
     with Image.open(BytesIO(sharpened)) as first, Image.open(BytesIO(plain)) as second:
         assert first.tobytes() != second.tobytes()

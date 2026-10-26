@@ -1,7 +1,6 @@
 """Check batch completion, cancellation, and notification fallback."""
 
 import os
-import time
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -77,7 +76,7 @@ def test_missing_tray_keeps_sound(notifier, quiet_notifications, monkeypatch):
 
 
 @pytest.mark.parametrize("enlarge", [False, True])
-def test_real_batch_notifies_once(enlarge, tmp_path, monkeypatch, quiet_notifications):
+def test_real_batch_notifies_once(wait_for, enlarge, tmp_path, monkeypatch, quiet_notifications):
     app = QApplication.instance() or QApplication([])
     monkeypatch.setattr(QSystemTrayIcon, "isSystemTrayAvailable", lambda: True)
     monkeypatch.setattr(QSystemTrayIcon, "supportsMessages", lambda: True)
@@ -92,11 +91,7 @@ def test_real_batch_notifies_once(enlarge, tmp_path, monkeypatch, quiet_notifica
     try:
         page.add_files(sources)
         page.start_export()
-        deadline = time.monotonic() + 10
-        while page.job and time.monotonic() < deadline:
-            app.processEvents()
-            time.sleep(0.01)
-        assert page.job is None
+        wait_for(lambda: page.job is None)
         assert page.last_export["successes"] == 2
         quiet_notifications["sound"].assert_called_once()
         quiet_notifications["message"].assert_called_once()

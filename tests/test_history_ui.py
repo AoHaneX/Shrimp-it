@@ -1,11 +1,9 @@
 """Check history navigation, asynchronous previews, and deletion controls."""
 
-import time
 from copy import deepcopy
 
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import QApplication, QMessageBox
-from test_history import record
 
 from shrimpit.gui.main_window import MainWindow
 from shrimpit.gui.pages.history import HistoryDetails, HistoryPage
@@ -18,9 +16,9 @@ def drain(loader):
         QApplication.processEvents()
 
 
-def test_history_navigation_and_missing_previews(tmp_path):
+def test_history_navigation_and_missing_previews(record, tmp_path):
     store = HistoryStore(tmp_path / "history.json")
-    source, output = record(store, tmp_path)
+    source, output = record(store)
     source.unlink()
     page = HistoryPage(store)
     try:
@@ -49,9 +47,9 @@ def test_history_navigation_and_missing_previews(tmp_path):
         page.close()
 
 
-def test_confirmation_and_immediate_batch_deletion(tmp_path, monkeypatch):
+def test_confirmation_and_immediate_batch_deletion(record, tmp_path, monkeypatch):
     store = HistoryStore(tmp_path / "history.json")
-    source, output = record(store, tmp_path)
+    source, output = record(store)
     page = HistoryPage(store)
     try:
         batch = store.batches()[0]
@@ -62,7 +60,7 @@ def test_confirmation_and_immediate_batch_deletion(tmp_path, monkeypatch):
         monkeypatch.setattr(QMessageBox, "question", lambda *args: QMessageBox.StandardButton.Yes)
         page.delete_batch(batch)
         assert page.tree.topLevelItemCount() == 0
-        record(store, tmp_path)
+        record(store)
         page.reload()
         page.clear_button.click()
         assert page.tree.topLevelItemCount() == 0
@@ -72,11 +70,11 @@ def test_confirmation_and_immediate_batch_deletion(tmp_path, monkeypatch):
         page.close()
 
 
-def test_navigation_and_export_integration(tmp_path, monkeypatch):
+def test_navigation_and_export_integration(record, wait_for, tmp_path, monkeypatch):
     from PySide6.QtWidgets import QFileDialog
 
     store = HistoryStore(tmp_path / "history.json")
-    source, _ = record(store, tmp_path)
+    source, _ = record(store)
     store.clear()
     window = MainWindow(QSettings(str(tmp_path / "prefs.ini"), QSettings.Format.IniFormat), store)
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: (str(tmp_path / "final.jpg"), ""))
@@ -84,11 +82,7 @@ def test_navigation_and_export_integration(tmp_path, monkeypatch):
         page = window.compression
         page.add_files([source])
         page.start_export()
-        deadline = time.monotonic() + 10
-        while page.job and time.monotonic() < deadline:
-            QApplication.processEvents()
-            time.sleep(0.01)
-        assert page.job is None
+        wait_for(lambda: page.job is None)
         assert len(store.batches()) == 1
         window.sidebar.buttons[3].click()
         assert window.stack.currentWidget().widget() is window.history
@@ -108,9 +102,9 @@ def test_navigation_and_export_integration(tmp_path, monkeypatch):
         window.close()
 
 
-def test_progressive_rows_ignore_pending_callbacks_after_deletion(tmp_path, monkeypatch):
+def test_progressive_rows_ignore_pending_callbacks_after_deletion(record, wait_for, tmp_path, monkeypatch):
     store = HistoryStore(tmp_path / "history.json")
-    record(store, tmp_path)
+    record(store)
     batches = store.batches()
     entry = batches[0]["images"][0]
     batches[0]["images"] = [dict(deepcopy(entry), id=str(i)) for i in range(45)]
@@ -120,11 +114,7 @@ def test_progressive_rows_ignore_pending_callbacks_after_deletion(tmp_path, monk
         item = page.tree.topLevelItem(0)
         item.setExpanded(True)
         assert item.childCount() == 20
-        deadline = time.monotonic() + 2
-        while item.childCount() < 45 and time.monotonic() < deadline:
-            QApplication.processEvents()
-            time.sleep(0.01)
-        assert item.childCount() == 45
+        wait_for(lambda: item.childCount() == 45, timeout=2)
         page.reload()
         batches.clear()
         page.reload()
