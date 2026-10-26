@@ -118,6 +118,8 @@ def stylesheet(font: str) -> str:
     QLabel#brand {{ font-family: '{font}'; font-size: 32px; font-weight: bold; }}
     QLabel#cardTitle {{ font-family: '{font}'; font-size: 29px; font-weight: bold; }}
     QLabel#status {{ background: rgba(2, 18, 34, 235); border: 1px solid #163d57; border-radius: 7px; padding: 11px; color: #bfcdec; }}
+    QLabel#warning {{ background: rgba(94, 32, 43, 225); border: 1px solid #a34452; border-radius: 7px; padding: 10px; color: #ffe3e7; }}
+    QFrame#actionBar {{ background: rgba(2, 16, 30, 235); border-top: 1px solid #164969; }}
     QLabel#section {{ font-size: 19px; font-weight: 600; }}
     QLabel#muted {{ color: #acbce4; }}
     QLabel#cyan {{ color: #21dafa; font-weight: 600; }}

@@ -116,7 +116,7 @@ def test_compression_preview_and_save(app, window, source, tmp_path, monkeypatch
     wait_for(app, lambda: page.job is None)
     assert destination.exists()
     assert "1 image(s) enregistrée(s)" in page.status.text()
-    assert page.progress.value() == page.progress.maximum()
+    assert page.export.isEnabled()
 
 
 def test_batch_export_and_collision(app, window, source, tmp_path, monkeypatch):
@@ -157,9 +157,14 @@ def test_custom_dimensions_and_ratio(app, window, source, tmp_path, monkeypatch)
 def test_corrupt_import_and_duplicate_filter(window, source, tmp_path):
     broken = tmp_path / "broken.png"
     broken.write_bytes(b"invalid")
+    window.navigate(1)
     window.compression.add_files([broken])
     assert not window.compression.sources
     assert not window.compression.export.isEnabled()
+    assert window.compression.import_errors.isVisible()
+    assert "broken.png" in window.compression.import_errors.text()
+    window.compression.add_files([source])
+    assert not window.compression.import_errors.isVisible()
     window.enlargement.add_files([source, source])
     assert window.enlargement.sources == [source]
 
@@ -204,6 +209,18 @@ def test_single_export_refused_before_start(window, source, tmp_path, monkeypatc
     assert not (tmp_path / "result.jpg").exists()
 
 
+@pytest.mark.parametrize("size", [(1360, 960), (760, 560)])
+def test_export_bar_stays_visible_without_scrolling(app, window, source, size):
+    window.navigate(2)
+    window.resize(*size)
+    window.enlargement.add_files([source])
+    app.processEvents()
+    button = window.enlargement.export
+    bottom = button.mapTo(window, button.rect().bottomLeft()).y()
+    assert button.isVisible()
+    assert bottom <= window.height()
+
+
 def test_batch_list_shows_several_rows(window):
     assert window.compression.files.maximumHeight() >= 5 * 28
 
@@ -214,7 +231,8 @@ def test_cancelled_file_dialog_writes_nothing(window, source, monkeypatch):
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: ("", ""))
     page.start_export()
     assert page.job is None
-    assert page.progress.value() == 0
+    assert window.stack.currentIndex() != 4
+    assert "1 image(s) prête(s)" in page.status.text()
 
 
 def test_settings_persist(window):

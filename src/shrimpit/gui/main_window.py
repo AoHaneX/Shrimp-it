@@ -1,6 +1,7 @@
 """Application shell and page navigation."""
 
 from PySide6.QtCore import QSettings, QTimer
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QHBoxLayout, QMainWindow, QMessageBox, QScrollArea, QStackedWidget
 
 from shrimpit.gui.navigation import Page, Sidebar
@@ -14,13 +15,24 @@ from shrimpit.history import HistoryStore
 from shrimpit.preferences import boolean_setting
 
 
+def initial_size():
+    """Fit the preferred 1360 × 960 window inside the screen's free area."""
+    width, height = 1360, 960
+    screen = QGuiApplication.primaryScreen()
+    if screen is not None:
+        available = screen.availableGeometry()
+        width = min(width, int(available.width() * 0.95))
+        height = min(height, int(available.height() * 0.92))
+    return max(width, 760), max(height, 560)
+
+
 class MainWindow(QMainWindow):
     def __init__(self, settings=None, history_store=None):
         super().__init__()
         self.settings = settings if settings is not None else QSettings("BlueShrimp", "Shrimpit")
         self.setWindowTitle("Shrimp'It — Compression et agrandissement")
-        self.resize(1360, 960)
         self.setMinimumSize(760, 560)
+        self.resize(*initial_size())
         self.setStyleSheet(stylesheet(title_font()))
         root = OceanBackground()
         self.setCentralWidget(root)
@@ -51,6 +63,10 @@ class MainWindow(QMainWindow):
             Page.HISTORY: self.history,
         }
         for _, page in sorted(pages.items()):
+            if isinstance(page, ProcessingPage):
+                # These pages scroll their content themselves to keep the export bar visible.
+                self.stack.addWidget(page)
+                continue
             scroll = QScrollArea()
             scroll.setWidgetResizable(True)
             scroll.setWidget(page)

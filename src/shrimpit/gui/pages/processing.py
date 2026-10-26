@@ -6,10 +6,11 @@ from PySide6.QtCore import Qt, QTimer, Signal, Slot
 from PySide6.QtWidgets import (
     QBoxLayout,
     QFileDialog,
+    QFrame,
     QHBoxLayout,
     QListWidget,
-    QProgressBar,
     QPushButton,
+    QScrollArea,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -43,8 +44,19 @@ class ProcessingPage(QWidget):
         self.preview_job = None
         self.revision = 0
         self.preview_payload = None
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(22, 24, 22, 22)
+        # Only the content scrolls: the export bar stays visible at every window size.
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.viewport().setAutoFillBackground(False)
+        content = QWidget()
+        content.setObjectName("page")
+        scroll.setWidget(content)
+        outer.addWidget(scroll, 1)
+        layout = QVBoxLayout(content)
+        layout.setContentsMargins(22, 24, 22, 14)
         layout.setSpacing(14)
         page_heading(
             layout,
@@ -58,6 +70,10 @@ class ProcessingPage(QWidget):
         self.drop_zone.files_dropped.connect(self.add_files)
         self.drop_zone.choose_clicked.connect(self.choose_files)
         layout.addWidget(self.drop_zone)
+        self.import_errors = label("", "warning")
+        self.import_errors.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.import_errors.hide()
+        layout.addWidget(self.import_errors)
 
         self.body = QBoxLayout(QBoxLayout.Direction.LeftToRight)
         self.body.setSpacing(14)
@@ -116,30 +132,25 @@ class ProcessingPage(QWidget):
         controls.addWidget(self.output)
         self.body.addWidget(self.settings_panel, 2)
         layout.addLayout(self.body)
-        self.export = QPushButton("Agrandir et enregistrer…" if enlarge else "Compresser et enregistrer…")
-        self.export.setObjectName("action")
-        self.export.clicked.connect(self.start_export)
-        self.export.setEnabled(False)
-        layout.addWidget(self.export)
-        progress_row = QHBoxLayout()
-        self.progress = QProgressBar()
-        self.progress.setRange(0, 100)
-        self.progress.setValue(0)
-        self.progress.setTextVisible(False)
-        progress_row.addWidget(self.progress, 1)
-        self.percentage = label("0 %", "muted", False)
-        progress_row.addWidget(self.percentage)
-        self.cancel = QPushButton("Annuler la suite")
-        self.cancel.clicked.connect(self.cancel_export)
-        self.cancel.hide()
-        progress_row.addWidget(self.cancel)
-        layout.addLayout(progress_row)
+        layout.addStretch()
+
+        action_bar = QFrame()
+        action_bar.setObjectName("actionBar")
+        actions = QHBoxLayout(action_bar)
+        actions.setContentsMargins(22, 12, 22, 14)
+        actions.setSpacing(14)
         self.status = label(
             "Prêt à agrandir votre image." if enlarge else "Prêt à compresser vos images.", "status"
         )
         self.status.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        layout.addWidget(self.status)
-        layout.addStretch()
+        actions.addWidget(self.status, 1)
+        self.export = QPushButton("Agrandir et enregistrer…" if enlarge else "Compresser et enregistrer…")
+        self.export.setObjectName("action")
+        self.export.setMinimumWidth(260)
+        self.export.clicked.connect(self.start_export)
+        self.export.setEnabled(False)
+        actions.addWidget(self.export, 0, Qt.AlignmentFlag.AlignVCenter)
+        outer.addWidget(action_bar)
 
         self.preview_timer = QTimer(self)
         self.preview_timer.setSingleShot(True)
@@ -195,7 +206,13 @@ class ProcessingPage(QWidget):
         if accepted:
             self.files.setCurrentRow(self.sources.index(accepted[-1][0]))
         self.export.setEnabled(bool(self.sources))
-        self.status.setText("\n".join(errors) if errors else f"{len(self.sources)} image(s) prête(s).")
+        self.show_import_errors(errors)
+        self.status.setText(f"{len(self.sources)} image(s) prête(s).")
+
+    def show_import_errors(self, errors):
+        """Explain refused files next to the drop zone, where the user just acted."""
+        self.import_errors.setText("Fichiers non importés :\n" + "\n".join(errors) if errors else "")
+        self.import_errors.setVisible(bool(errors))
 
     @Slot(int)
     def selection_changed(self, row):
@@ -241,6 +258,7 @@ class ProcessingPage(QWidget):
         self.sources.clear()
         self.infos.clear()
         self.files.clear()
+        self.show_import_errors([])
         self.selection_changed(-1)
         self.export.setEnabled(False)
         self.status.setText("Liste vidée. Vos fichiers originaux sont conservés.")
@@ -400,15 +418,10 @@ class ProcessingPage(QWidget):
             self.preview_job.requestInterruption()
         self.job = ExportJob(plan, options)
         self.job.item_done.connect(self.item_done)
-        self.job.progress.connect(self.show_progress)
         self.job.finished.connect(self.export_finished)
         self.drop_zone.setEnabled(False)
         self.settings_panel.setEnabled(False)
         self.export.setEnabled(False)
-        self.cancel.show()
-        self.cancel.setEnabled(True)
-        self.progress.setRange(0, 0)
-        self.percentage.setText("…")
         self.status.setText("Traitement en cours…")
         self.busy_changed.emit(True)
         self.job.start()
@@ -424,17 +437,10 @@ class ProcessingPage(QWidget):
         else:
             self.status.setText(f"Enregistré : {result.destination}")
 
-    @Slot(int, int)
-    def show_progress(self, completed, total):
-        self.progress.setRange(0, total)
-        self.progress.setValue(completed)
-        self.percentage.setText(f"{round(100 * completed / total)} %")
-
     @Slot()
     def cancel_export(self):
         if self.job:
             self.job.requestInterruption()
-            self.cancel.setEnabled(False)
             self.status.setText("Annulation après l’image en cours…")
 
     @Slot()
@@ -445,13 +451,14 @@ class ProcessingPage(QWidget):
         if unprocessed:
             message += f" {unprocessed} image(s) non traitée(s)."
         if job.errors:
-            message += "\n" + "\n".join(job.errors)
+            # Keep the bar compact; every error stays readable in the tooltip and the summary screen.
+            message += "\n" + job.errors[0]
+            if len(job.errors) > 1:
+                message += f"\n… et {len(job.errors) - 1} autre(s), détaillée(s) au survol."
         elif job.successes:
             message += f"\nDossier : {job.plan[0][1].parent}"
         self.status.setText(message)
-        self.progress.setRange(0, len(job.plan))
-        self.progress.setValue(job.completed)
-        self.percentage.setText(f"{round(100 * job.completed / len(job.plan))} %")
+        self.status.setToolTip("\n".join(job.errors))
         self.last_export = {
             "successes": job.successes,
             "errors": list(job.errors),
@@ -467,7 +474,6 @@ class ProcessingPage(QWidget):
         self.drop_zone.setEnabled(True)
         self.settings_panel.setEnabled(True)
         self.export.setEnabled(bool(self.sources))
-        self.cancel.hide()
         self.busy_changed.emit(False)
         if not self.shutting_down and not self.preview_payload:
             self.preview_timer.start()
