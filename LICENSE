@@ -19,3 +19,44 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+-------------------------------------------------------------------------------
+
+Artwork and sounds: all rights reserved
+
+The MIT License above covers the source code of Shrimp'It only. It does not
+cover the illustrations, mascots, logos, icons, backgrounds, animations,
+example images and sounds created for Shrimp'It and ReefKit, namely:
+
+- the files in src/shrimpit/assets/, except the Chakra Petch font and its
+  license (src/shrimpit/assets/fonts/ and src/shrimpit/assets/licenses/);
+- the screenshots in docs/images/.
+
+All rights to these files are reserved by the author of Shrimp'It. Their
+presence in this repository or in a distributed build of the application
+grants no permission to reuse, modify or redistribute them, separately or in
+another project. Any such use requires prior written permission.
+
+The Chakra Petch font is distributed under the SIL Open Font License 1.1, whose
+text is provided in src/shrimpit/assets/licenses/chakra-petch-OFL.txt.
+
+-------------------------------------------------------------------------------
+
+Illustrations et sons : tous droits réservés
+
+La licence MIT ci-dessus couvre uniquement le code source de Shrimp'It. Elle ne
+couvre pas les illustrations, mascottes, logos, icônes, fonds, animations,
+images d'exemple et sons créés pour Shrimp'It et ReefKit, à savoir :
+
+- les fichiers de src/shrimpit/assets/, à l'exception de la police Chakra Petch
+  et de sa licence (src/shrimpit/assets/fonts/ et src/shrimpit/assets/licenses/) ;
+- les captures d'écran de docs/images/.
+
+Tous les droits sur ces fichiers sont réservés à l'auteur de Shrimp'It. Leur
+présence dans ce dépôt ou dans une version distribuée de l'application
+n'accorde aucune autorisation de les réutiliser, de les modifier ou de les
+redistribuer, séparément ou dans un autre projet. Toute utilisation de ce type
+nécessite une autorisation écrite préalable.
+
+La police Chakra Petch est distribuée sous la licence SIL Open Font License 1.1,
+dont le texte figure dans src/shrimpit/assets/licenses/chakra-petch-OFL.txt.
