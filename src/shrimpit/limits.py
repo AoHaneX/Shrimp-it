@@ -6,8 +6,10 @@ import sys
 from shrimpit.errors import ConversionError
 from shrimpit.upscale import UpscaleSettings
 
+MAX_INPUT_PIXELS = 25_000_000
 MAX_OUTPUT_PIXELS = 400_000_000
-MAX_PREVIEW_PIXELS = 25_000_000
+# Outputs up to the input ceiling are previewed automatically and need no memory check.
+MAX_PREVIEW_PIXELS = MAX_INPUT_PIXELS
 
 
 def available_memory_bytes() -> int | None:

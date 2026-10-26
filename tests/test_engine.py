@@ -125,7 +125,7 @@ def test_invalid_format_or_extension(source, tmp_path, fmt, name):
 
 
 def test_pixel_limit(source, tmp_path, monkeypatch):
-    monkeypatch.setattr("shrimpit.engine.MAX_PIXELS", 10)
+    monkeypatch.setattr("shrimpit.engine.MAX_INPUT_PIXELS", 10)
     with pytest.raises(ConversionError, match="25 mégapixels"):
         convert_image(source, tmp_path / "out.jpg")
 

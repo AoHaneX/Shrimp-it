@@ -8,12 +8,28 @@ from PIL import Image, ImageMath, ImageOps, UnidentifiedImageError
 
 from shrimpit.errors import ConversionError, describe_error
 from shrimpit.filenames import validate_filename
-from shrimpit.limits import check_export_memory, check_output_size
+from shrimpit.limits import MAX_INPUT_PIXELS, check_export_memory, check_output_size
 from shrimpit.upscale import UpscaleSettings, resize_image
 
 EXTENSIONS = {"JPEG": {".jpg", ".jpeg"}, "PNG": {".png"}, "WEBP": {".webp"}}
-MAX_PIXELS = 25_000_000
+# Suffix proposed for new files in each output format.
+SUFFIXES = {"JPEG": ".jpg", "PNG": ".png", "WEBP": ".webp"}
 HIGH_DEPTH_GRAYSCALE = {"I", "I;16", "I;16L", "I;16B", "I;16N"}
+EXIF_ORIENTATION = 274
+
+
+def oriented_size(image: Image.Image) -> tuple[int, int]:
+    """Return the displayed size once the EXIF rotation is applied, without decoding pixels."""
+    width, height = image.size
+    if image.getexif().get(EXIF_ORIENTATION) in (5, 6, 7, 8):
+        return height, width
+    return width, height
+
+
+def flatten_on_white(image: Image.Image) -> Image.Image:
+    background = Image.new("RGB", image.size, "white")
+    background.paste(image, mask=image.getchannel("A"))
+    return background
 
 
 def to_8_bit(image: Image.Image) -> Image.Image:
@@ -115,11 +131,9 @@ def _process_image(
                     raise ConversionError("Formats d'entrée acceptés : JPEG, PNG et WebP.")
                 if getattr(original, "n_frames", 1) != 1:
                     raise ConversionError("Les images animées ne sont pas prises en charge.")
-                if original.width * original.height > MAX_PIXELS:
+                if original.width * original.height > MAX_INPUT_PIXELS:
                     raise ConversionError("Les images d'entrée sont limitées à 25 mégapixels.")
-                width, height = original.size
-                if original.getexif().get(274) in (5, 6, 7, 8):
-                    width, height = height, width
+                width, height = oriented_size(original)
                 target_size = size or (width * scale, height * scale)
                 if size is not None and (size[0] < width or size[1] < height or size == (width, height)):
                     raise ConversionError("Les dimensions personnalisées doivent agrandir l'image.")
@@ -130,19 +144,14 @@ def _process_image(
                 input_size = oriented.size
                 has_alpha = "A" in oriented.getbands() or "transparency" in oriented.info
                 pixels = oriented.convert("RGBA" if has_alpha else "RGB")
-                if output_format == "JPEG" and has_alpha and upscale_settings is None:
-                    background = Image.new("RGB", pixels.size, "white")
-                    background.paste(pixels, mask=pixels.getchannel("A"))
-                    pixels = background
                 # Create a new image to remove EXIF, GPS, text, and ICC metadata.
                 clean = Image.frombytes(pixels.mode, pixels.size, pixels.tobytes())
 
         if target_size != clean.size:
             clean = resize_image(clean, target_size, upscale_settings or UpscaleSettings(sharpen=False))
-        if upscale_settings is not None and output_format == "JPEG" and clean.mode == "RGBA":
-            background = Image.new("RGB", clean.size, "white")
-            background.paste(clean, mask=clean.getchannel("A"))
-            clean = background
+        if output_format == "JPEG" and clean.mode == "RGBA":
+            # Flatten after resizing so enlargements keep premultiplied-alpha edges.
+            clean = flatten_on_white(clean)
 
         options = {"optimize": True} if output_format == "PNG" else {"quality": quality}
         if output_format == "JPEG":

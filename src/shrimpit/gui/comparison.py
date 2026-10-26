@@ -4,7 +4,7 @@ from PySide6.QtCore import QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QHBoxLayout, QSlider, QVBoxLayout, QWidget
 
-from shrimpit.gui.widgets import label
+from shrimpit.gui.widgets import label, paint_checkerboard
 
 
 class ComparisonCanvas(QWidget):
@@ -65,17 +65,7 @@ class ComparisonCanvas(QWidget):
             painter.setPen(QColor("#acbce4"))
             painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self.message)
             return
-        painter.save()
-        painter.setClipRect(frame)
-        for x in range(int(frame.left()), int(frame.right()) + 1, 12):
-            for y in range(int(frame.top()), int(frame.bottom()) + 1, 12):
-                color = (
-                    "#234259"
-                    if ((x - int(frame.left())) // 12 + (y - int(frame.top())) // 12) % 2
-                    else "#173247"
-                )
-                painter.fillRect(x, y, 12, 12, QColor(color))
-        painter.restore()
+        paint_checkerboard(painter, frame)
         split = self.split_x()
         for pixmap, size, clip in (
             (

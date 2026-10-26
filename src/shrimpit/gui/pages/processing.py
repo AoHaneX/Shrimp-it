@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from shrimpit.engine import EXTENSIONS
+from shrimpit.engine import EXTENSIONS, SUFFIXES
 from shrimpit.errors import ConversionError
 from shrimpit.examples import example_preview
 from shrimpit.filenames import validate_filename
@@ -382,7 +382,7 @@ class ProcessingPage(QWidget):
                 self.note.text()
                 + " La largeur choisie s’applique au lot ; chaque image conserve ses proportions."
             )
-        extension = {"JPEG": ".jpg", "PNG": ".png", "WebP": ".webp"}[self.format.currentText()]
+        extension = SUFFIXES[self.format.currentText().upper()]
         if self.name_template is not None:
             try:
                 validate_filename(self.name_template)

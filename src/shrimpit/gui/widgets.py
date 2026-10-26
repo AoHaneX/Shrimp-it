@@ -27,6 +27,18 @@ def panel(role: str = "panel"):
     return frame, layout
 
 
+def paint_checkerboard(painter: QPainter, area: QRect | QRectF):
+    """Paint the transparency pattern shown behind previews."""
+    area = QRectF(area).toRect()
+    painter.save()
+    painter.setClipRect(area)
+    for x in range(area.left(), area.right() + 1, 12):
+        for y in range(area.top(), area.bottom() + 1, 12):
+            dark = ((x - area.left()) // 12 + (y - area.top()) // 12) % 2
+            painter.fillRect(x, y, 12, 12, QColor("#234259" if dark else "#173247"))
+    painter.restore()
+
+
 class OceanBackground(QWidget):
     def __init__(self, filename=BACKGROUND, sidebar=False):
         super().__init__()
@@ -181,14 +193,8 @@ class PreviewCanvas(QWidget):
             scaled.width(),
             scaled.height(),
         )
-        painter.save()
-        painter.setClipRect(target)
-        for x in range(target.left(), target.right() + 1, 12):
-            for y in range(target.top(), target.bottom() + 1, 12):
-                color = "#234259" if ((x - target.left()) // 12 + (y - target.top()) // 12) % 2 else "#173247"
-                painter.fillRect(x, y, 12, 12, QColor(color))
+        paint_checkerboard(painter, target)
         painter.drawPixmap(target.topLeft(), scaled)
-        painter.restore()
 
 
 class PreviewCard(QFrame):
