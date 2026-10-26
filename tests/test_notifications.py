@@ -48,6 +48,20 @@ def test_completion_summary(
         assert Path(notifier.player.source().toLocalFile()) == FINISH_SOUND
 
 
+def test_tray_icon_appears_only_for_notifications(notifier, monkeypatch):
+    shown = []
+    monkeypatch.setattr(QSystemTrayIcon, "show", lambda self: shown.append(self))
+    service = CompletionNotifier()
+    try:
+        assert not shown
+        service.finished(dict(total=1, completed=1, successes=1, errors=[]))
+        assert shown == [service.tray]
+        assert service.hide_timer.isActive()
+    finally:
+        service.close()
+    assert not service.hide_timer.isActive()
+
+
 def test_missing_sound_keeps_notification(notifier, quiet_notifications, monkeypatch, tmp_path):
     monkeypatch.setattr("shrimpit.gui.notifications.FINISH_SOUND", tmp_path / "missing.ogg")
     notifier.finished(dict(total=1, completed=1, successes=1, errors=[]))

@@ -2,13 +2,15 @@
 
 import logging
 
-from PySide6.QtCore import QObject, QUrl, Signal
+from PySide6.QtCore import QObject, QTimer, QUrl, Signal
 from PySide6.QtGui import QIcon
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import QSystemTrayIcon
 
 from shrimpit.preferences import boolean_setting
 from shrimpit.resources import FINISH_SOUND, SHRIMPY_ICON
+
+MESSAGE_DURATION = 7000
 
 
 class CompletionNotifier(QObject):
@@ -23,8 +25,11 @@ class CompletionNotifier(QObject):
         self.tray.setToolTip("Shrimp'It")
         self.tray.messageClicked.connect(self.activated)
         self.tray.activated.connect(self.on_tray_activated)
-        if QSystemTrayIcon.isSystemTrayAvailable():
-            self.tray.show()
+        # Windows needs a tray icon to show a notification; keep it only while the message is visible.
+        self.hide_timer = QTimer(self)
+        self.hide_timer.setSingleShot(True)
+        self.hide_timer.setInterval(MESSAGE_DURATION + 5000)
+        self.hide_timer.timeout.connect(self.tray.hide)
 
     def on_tray_activated(self, reason):
         if reason == QSystemTrayIcon.ActivationReason.Trigger:
@@ -71,11 +76,13 @@ class CompletionNotifier(QObject):
                 if errors or interrupted
                 else QSystemTrayIcon.MessageIcon.Information
             )
-            self.tray.showMessage(f"Shrimp'It — {title}", message, icon, 7000)
+            self.tray.showMessage(f"Shrimp'It — {title}", message, icon, MESSAGE_DURATION)
+            self.hide_timer.start()
 
     def close(self):
         if self.player is not None:
             self.player.stop()
+        self.hide_timer.stop()
         self.tray.hide()
 
     def audio_failed(self, error, message):
