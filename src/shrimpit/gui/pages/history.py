@@ -203,8 +203,9 @@ class HistoryPage(QWidget):
         try:
             batches = self.store.batches()
         except HistoryError as exc:
+            # Clearing replaces an unreadable file, so keep it available as a way out.
             self.status.setText(str(exc))
-            self.clear_button.setEnabled(False)
+            self.clear_button.setEnabled(True)
             return
         self.status.setText(
             self.store.warning

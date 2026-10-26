@@ -4,10 +4,12 @@ import json
 import os
 import shutil
 import tempfile
+import time
 from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import asdict
 from datetime import datetime, timezone
+from functools import partial
 from pathlib import Path
 from threading import RLock
 from uuid import uuid4
@@ -15,6 +17,7 @@ from uuid import uuid4
 from shrimpit.processing import options_for_source
 
 MAX_HISTORY_BYTES = 32 * 1024 * 1024
+LOCK_TIMEOUT = 2.0
 
 
 def timestamp():
@@ -42,7 +45,11 @@ def validate_document(data):
             created = datetime.fromisoformat(record["created_at"])
             if created.tzinfo is None:
                 raise ValueError("Missing time zone")
-            created.astimezone()
+            try:
+                created.astimezone()
+            except (OSError, OverflowError) as exc:
+                # Windows cannot express dates near year 1 or 9999 in local time.
+                raise ValueError("Date out of range") from exc
         if not isinstance(batch["images"], list):
             raise ValueError("Invalid image list")
         for entry in batch["images"]:
@@ -92,11 +99,21 @@ class HistoryStore:
                 if os.name == "nt":
                     import msvcrt
 
-                    msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
+                    acquire = partial(msvcrt.locking, stream.fileno(), msvcrt.LK_NBLCK, 1)
                 else:
                     import fcntl
 
-                    fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    acquire = partial(fcntl.flock, stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                # Another instance may be writing: wait briefly instead of losing this update.
+                deadline = time.monotonic() + LOCK_TIMEOUT
+                while True:
+                    try:
+                        acquire()
+                        break
+                    except OSError:
+                        if time.monotonic() >= deadline:
+                            raise
+                        time.sleep(0.05)
                 try:
                     yield
                 finally:
@@ -203,4 +220,9 @@ class HistoryStore:
         )
 
     def clear(self):
-        self._update(lambda batches: batches.clear())
+        # Do not read first: clearing must also work when the file cannot be loaded.
+        try:
+            with self._locked():
+                self._write({"version": 1, "batches": []})
+        except OSError as exc:
+            raise HistoryError(f"Impossible d’effacer l’historique : {exc}") from exc

@@ -1,6 +1,7 @@
 """Verify durable metadata, failure recovery, and reference-only deletion."""
 
 import json
+from threading import Event, Thread, Timer
 
 import pytest
 from PIL import Image
@@ -69,6 +70,51 @@ def test_invalid_json_is_preserved_and_recovers(tmp_path, contents):
     assert backup[0].read_bytes() == contents.encode("latin1")
     record(store, tmp_path)
     assert len(HistoryStore(path).batches()) == 1
+
+
+@pytest.mark.parametrize("created_at", ["0001-01-01T00:00:00+00:00", "9999-12-31T23:59:59+00:00"])
+def test_out_of_range_dates_are_preserved_and_recover(tmp_path, created_at):
+    store = HistoryStore(tmp_path / "history.json")
+    record(store, tmp_path)
+    data = json.loads(store.path.read_text(encoding="utf-8"))
+    data["batches"][0]["images"][0]["created_at"] = created_at
+    store.path.write_text(json.dumps(data), encoding="utf-8")
+    assert store.batches() == []
+    assert "copie" in store.warning
+    assert list(tmp_path.glob("history-invalid-*.json"))
+
+
+def test_second_instance_waits_for_the_lock(tmp_path):
+    first = HistoryStore(tmp_path / "history.json")
+    second = HistoryStore(first.path)
+    holding, release = Event(), Event()
+
+    def hold():
+        with first._locked():
+            holding.set()
+            release.wait(5)
+
+    thread = Thread(target=hold)
+    thread.start()
+    try:
+        assert holding.wait(5)
+        Timer(0.3, release.set).start()
+        record(second, tmp_path)
+    finally:
+        release.set()
+        thread.join(5)
+    assert len(first.batches()) == 1
+
+
+def test_clear_replaces_an_unreadable_history(tmp_path, monkeypatch):
+    path = tmp_path / "history.json"
+    path.write_bytes(b" " * 101)
+    monkeypatch.setattr("shrimpit.history.MAX_HISTORY_BYTES", 100)
+    store = HistoryStore(path)
+    with pytest.raises(HistoryError):
+        store.batches()
+    store.clear()
+    assert store.batches() == []
 
 
 def test_atomic_write_failure_keeps_previous_history(tmp_path, monkeypatch):

@@ -124,9 +124,11 @@ métadonnées, jamais d’image ni de miniature. Les dates sont en UTC.
 - Chaque image réussie est enregistrée depuis le worker d’export. Une erreur d’historique est signalée
   dans le bilan sans invalider l’image exportée.
 - Écriture atomique : fichier temporaire dans le même dossier, `fsync`, puis `os.replace`. Un verrou de
-  fichier (`history.lock`) empêche deux instances d’écrire en même temps.
-- Un JSON invalide est copié dans `history-invalid-<id>.json`, puis remplacé par un historique vide.
-  Au-delà de 32 Mio, le fichier n’est pas chargé et reste intact.
+  fichier (`history.lock`) empêche deux instances d’écrire en même temps ; une instance attend jusqu’à
+  2 secondes que l’autre ait terminé avant de signaler une erreur.
+- Un JSON invalide, ou une date impossible à convertir en heure locale, est copié dans
+  `history-invalid-<id>.json`, puis remplacé par un historique vide. Au-delà de 32 Mio, le fichier n’est
+  pas chargé ; « Effacer tout l’historique » reste disponible et le remplace après confirmation.
 - Le fichier entier est réécrit à chaque image : suffisant pour quelques milliers d’entrées. Pour des
   dizaines de milliers, il faudrait passer à SQLite et à une pagination.
 - Dans l’interface, les lots se déplient par groupes de 20 et les miniatures sont décodées une à une hors
