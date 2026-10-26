@@ -65,7 +65,8 @@ Shrimpit/
 - Les erreurs de Pillow et du système sont traduites par `errors.describe_error` ; le détail technique
   reste dans les journaux (`%LOCALAPPDATA%\Shrimpit\logs`, trois fichiers de 1 Mo au maximum).
 - Les pixels sont normalisés en RGB/RGBA 8 bits ; l’orientation EXIF est appliquée, puis les métadonnées
-  et profils ICC sont retirés en recréant l’image.
+  et profils ICC sont retirés en recréant l’image. Les niveaux de gris 16 bits (`I;16`) sont divisés par
+  256 avant conversion, car une conversion directe de Pillow écrête les valeurs et blanchit l’image.
 - Interface et documentation en français ; commentaires et docstrings en anglais.
 
 `gui/pages/processing.py` reste le module le plus volumineux. On pourra en extraire le panneau de

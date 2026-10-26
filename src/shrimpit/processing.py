@@ -7,7 +7,14 @@ from pathlib import Path
 
 from PIL import Image, ImageOps
 
-from shrimpit.engine import EXTENSIONS, MAX_PIXELS, ConversionError, convert_image, upscale_image
+from shrimpit.engine import (
+    EXTENSIONS,
+    MAX_PIXELS,
+    ConversionError,
+    convert_image,
+    to_8_bit,
+    upscale_image,
+)
 from shrimpit.errors import describe_error
 from shrimpit.filenames import validate_filename
 from shrimpit.upscale import UpscaleSettings
@@ -63,7 +70,7 @@ def thumbnail(path: Path, pixel_art: bool = False) -> bytes:
     image_info(path)
     try:
         with Image.open(path) as image:
-            image = ImageOps.exif_transpose(image)
+            image = to_8_bit(ImageOps.exif_transpose(image))
             image.thumbnail((640, 420), Image.Resampling.NEAREST if pixel_art else Image.Resampling.LANCZOS)
             stream = BytesIO()
             image.convert("RGBA").save(stream, format="PNG")

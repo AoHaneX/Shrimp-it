@@ -1,9 +1,12 @@
 """Protect compression behavior across formats, alpha modes, and quality settings."""
 
+from io import BytesIO
+
 import pytest
 from PIL import Image, ImageChops, ImageStat
 
 from shrimpit.engine import ConversionError, convert_image
+from shrimpit.processing import thumbnail
 
 FORMATS = [("JPEG", "jpg"), ("PNG", "png"), ("WEBP", "webp")]
 
@@ -81,6 +84,39 @@ def test_alpha_modes_and_partial_transparency(tmp_path, mode, fmt, extension):
         assert actual.getchannel("A").tobytes() == expected.getchannel("A").tobytes()
         if fmt == "PNG":
             assert actual.tobytes() == expected.tobytes()
+
+
+@pytest.mark.parametrize("fmt,extension", FORMATS)
+def test_16_bit_grayscale_is_scaled_not_clipped(tmp_path, fmt, extension):
+    source = tmp_path / "gray16.png"
+    image = Image.new("I;16", (256, 4))
+    image.putdata([x * 257 for _ in range(4) for x in range(256)])
+    image.save(source)
+    target = tmp_path / f"result.{extension}"
+    convert_image(source, target, fmt, quality=95)
+    with Image.open(target) as output:
+        gray = output.convert("L")
+        assert gray.getpixel((0, 0)) <= 2
+        assert gray.getpixel((128, 0)) == pytest.approx(128, abs=3)
+        assert gray.getpixel((255, 0)) >= 253
+    assert thumbnail_mean(source) == pytest.approx(127.5, abs=3)
+
+
+def test_16_bit_grayscale_keeps_png_transparency(tmp_path):
+    source = tmp_path / "gray16.png"
+    image = Image.new("I;16", (2, 1))
+    image.putdata([1000, 40000])
+    image.save(source, transparency=1000)
+    target = tmp_path / "result.png"
+    convert_image(source, target, "PNG")
+    with Image.open(target) as output:
+        assert output.convert("RGBA").getpixel((0, 0))[3] == 0
+        assert output.convert("RGBA").getpixel((1, 0)) == (156, 156, 156, 255)
+
+
+def thumbnail_mean(path):
+    with Image.open(BytesIO(thumbnail(path))) as preview:
+        return ImageStat.Stat(preview.convert("L")).mean[0]
 
 
 def test_partial_alpha_is_composited_on_white_for_jpeg(tmp_path):

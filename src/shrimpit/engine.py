@@ -4,7 +4,7 @@ import warnings
 from dataclasses import dataclass
 from pathlib import Path
 
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageMath, ImageOps, UnidentifiedImageError
 
 from shrimpit.errors import ConversionError, describe_error
 from shrimpit.filenames import validate_filename
@@ -13,6 +13,22 @@ from shrimpit.upscale import UpscaleSettings, resize_image
 
 EXTENSIONS = {"JPEG": {".jpg", ".jpeg"}, "PNG": {".png"}, "WEBP": {".webp"}}
 MAX_PIXELS = 25_000_000
+HIGH_DEPTH_GRAYSCALE = {"I", "I;16", "I;16L", "I;16B", "I;16N"}
+
+
+def to_8_bit(image: Image.Image) -> Image.Image:
+    """Scale 16-bit grayscale to 8 bits; a plain conversion would clip it to white."""
+    if image.mode not in HIGH_DEPTH_GRAYSCALE:
+        return image
+    values = image.convert("I")
+    gray = values.point(lambda value: value / 256).convert("L")
+    gray.info.pop("transparency", None)
+    transparent = image.info.get("transparency")
+    if isinstance(transparent, int):
+        # PNG stores one transparent 16-bit gray level instead of an alpha channel.
+        alpha = ImageMath.lambda_eval(lambda args: (args["values"] != transparent) * 255, values=values)
+        gray.putalpha(alpha.convert("L"))
+    return gray
 
 
 @dataclass(frozen=True)
@@ -110,7 +126,7 @@ def _process_image(
                 if upscale_settings is not None:
                     check_output_size(target_size, output_format)
                     check_export_memory((width, height), target_size, upscale_settings)
-                oriented = ImageOps.exif_transpose(original)
+                oriented = to_8_bit(ImageOps.exif_transpose(original))
                 input_size = oriented.size
                 has_alpha = "A" in oriented.getbands() or "transparency" in oriented.info
                 pixels = oriented.convert("RGBA" if has_alpha else "RGB")
