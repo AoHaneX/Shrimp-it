@@ -37,6 +37,7 @@ Issues = "https://github.com/AoHaneX/Shrimp-it/issues"
 [project.optional-dependencies]
 dev = ["pytest>=8,<10", "pytest-cov>=6,<8", "ruff>=0.14,<1"]
 audit = ["bandit>=1.9,<2", "pip-audit>=2.10,<3"]
+build = ["pyinstaller>=6.11,<7"]
 
 [project.gui-scripts]
 shrimpit = "shrimpit.__main__:main"

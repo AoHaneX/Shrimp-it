@@ -19,6 +19,8 @@ def install_french_translation(app):
     folder = QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)
     if translator.load(QLocale(QLocale.Language.French), "qtbase", "_", folder):
         app.installTranslator(translator)
+        return translator
+    return None
 
 
 def set_taskbar_identity():
@@ -35,6 +37,16 @@ def set_taskbar_identity():
 
 
 def main() -> int:
+    arguments = sys.argv[1:]
+    if arguments[:1] == ["--self-test"]:
+        # Packaging check: no log, no settings, no history in the user's folders.
+        from shrimpit.selftest import run_self_test
+
+        app = QApplication(sys.argv[:1])
+        install_french_translation(app)
+        app.setStyle("Fusion")
+        return run_self_test(app, arguments[1] if len(arguments) > 1 else None)
+
     folder = configure_logging()
     if sys.platform == "win32":
         set_taskbar_identity()

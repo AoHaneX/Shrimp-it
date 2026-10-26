@@ -16,7 +16,9 @@ Shrimpit/
 │   ├── check.ps1             Ruff, formatage et tests
 │   ├── security.ps1          pip check, Bandit et pip-audit
 │   ├── verify_compression.py Mesure des sorties de compression
+│   ├── build_windows.ps1     Version autonome : PyInstaller, autotest, ZIP et installateur
 │   └── build_preview_examples.py Régénération des exemples avant/après
+├── packaging/                Recette PyInstaller, lanceur et script Inno Setup
 ├── .github/workflows/        Contrôles GitHub Actions sous Windows
 ├── tests/                    Tests du moteur et de l’interface
 └── src/shrimpit/
@@ -31,7 +33,8 @@ Shrimpit/
     ├── errors.py             Erreurs métier et messages d’erreur en français
     ├── preferences.py        Lecture fiable des préférences
     ├── diagnostics.py        Journaux locaux de taille limitée
-    ├── resources.py          Chemins des assets
+    ├── resources.py          Chemins des assets et du dossier de données
+    ├── selftest.py           Autotest d’une version installée ou empaquetée
     ├── assets/               Images, GIF, sons, police et licence
     └── gui/
         ├── main_window.py    Fenêtre principale et navigation
@@ -148,6 +151,28 @@ métadonnées, jamais d’image ni de miniature. Les dates sont en UTC.
 
 Les droits des ressources sont décrits dans la section « Licence et ressources » du
 [README](../README.md#licence-et-ressources).
+
+## Distribution Windows
+
+`scripts/build_windows.ps1` enchaîne les étapes suivantes :
+
+1. PyInstaller construit un dossier `dist\Shrimpit\` (mode « un dossier », sans console) à partir de
+   `packaging/shrimpit.spec`. L’icône `.ico` est générée depuis `branding/shrimpy.png` et les informations
+   de version Windows depuis `shrimpit.__version__`.
+2. Le rendu OpenGL logiciel, Qt Quick/QML et les traductions Qt autres que le français sont retirés :
+   l’application n’utilise que Qt Widgets et Qt Multimedia (environ 116 Mo au lieu de 156 Mo).
+3. `Shrimpit.exe --self-test <rapport>` est lancé avec un `PATH` réduit aux dossiers de Windows et sans
+   variable `PYTHON*`. L’autotest (`selftest.py`) convertit les exemples dans les trois formats, essaie les
+   trois modes d’agrandissement, décode les animations et le son, vérifie la traduction Qt et construit la
+   fenêtre principale avec des préférences et un historique temporaires.
+4. Le dossier est compressé en `Shrimpit-<version>-windows-x64-portable.zip`, puis Inno Setup compile
+   `packaging/shrimpit.iss` en `Shrimpit-<version>-windows-x64-setup.exe`.
+
+L’installateur s’installe par défaut pour l’utilisateur courant (`{autopf}` sans droits administrateur),
+supprime `_internal\` avant une mise à jour pour ne garder aucune ancienne bibliothèque, et enregistre
+l’identifiant `BlueShrimp.Shrimpit` sur le raccourci pour que la barre des tâches regroupe les fenêtres.
+L’`AppId` de `shrimpit.iss` ne doit jamais changer : Windows l’utilise pour reconnaître les mises à jour.
+La désinstallation ne supprime ni les images ni `%LOCALAPPDATA%\BlueShrimp\Shrimpit`.
 
 ## Vérifications
 

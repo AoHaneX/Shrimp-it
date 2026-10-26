@@ -70,7 +70,7 @@ L’activation de `.venv` n’est pas nécessaire avec ces commandes explicites.
 
 Les dépendances sont déclarées dans [`pyproject.toml`](pyproject.toml) : `Pillow>=13.0,<14`, `PySide6-Essentials` et `PySide6-Addons` (`>=6.8,<7`). Seuls ces deux paquets de PySide6 sont installés : le paquet complet `PySide6` ajouterait environ 300 Mo de modules inutilisés (Qt WebEngine, Qt Pdf). [`requirements-tested.txt`](requirements-tested.txt) conserve les versions directes d’une validation antérieure ; ce n’est pas un verrou complet des dépendances.
 
-Le lancement depuis les sources est la méthode documentée ici. Le lanceur personnel `Lancer-ShrimpIt.bat` est exclu du dépôt et n’est pas requis. Aucun exécutable autonome validé n’est fourni dans ce dépôt.
+L’installation crée aussi `.venv\Scripts\shrimpit.exe`, qui lance l’application sans fenêtre de console : un raccourci vers ce fichier suffit pour les lancements suivants. Une version Windows autonome, utilisable sans Python, peut être construite comme décrit dans [Version Windows autonome](#version-windows-autonome).
 
 ## Limites à connaître
 
@@ -106,6 +106,22 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\security.ps1
 
 Le [workflow GitHub Actions](.github/workflows/checks.yml) prévoit les contrôles sur Windows avec Python 3.11 et 3.13.
 
+### Version Windows autonome
+
+Le script de construction produit, dans `dist\`, une archive portable et un installateur qui embarquent Python et toutes les dépendances. Il nécessite [Inno Setup 6](https://jrsoftware.org/isinfo.php) pour l’installateur (`winget install JRSoftware.InnoSetup`) ; l’option `-SkipInstaller` ne produit que l’archive.
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[build]"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_windows.ps1
+```
+
+| Fichier | Usage |
+| --- | --- |
+| `Shrimpit-<version>-windows-x64-portable.zip` | À extraire n’importe où, puis lancer `Shrimpit\Shrimpit.exe`. Aucune installation. |
+| `Shrimpit-<version>-windows-x64-setup.exe` | Installation pour l’utilisateur courant, sans droits administrateur, avec raccourci dans le menu Démarrer et désinstallation depuis les paramètres de Windows. |
+
+Avant de créer l’archive, le script lance `Shrimpit.exe --self-test` sans Python dans le `PATH` : ressources, formats, modes d’agrandissement, police, animations, son et fenêtre principale sont vérifiés dans un dossier temporaire, sans toucher aux préférences ni à l’historique. Les empreintes SHA-256 des fichiers produits sont affichées à la fin.
+
 ## Organisation et documentation
 
 ```text
@@ -113,17 +129,18 @@ src/shrimpit/        Moteur Pillow, historique et configuration
 src/shrimpit/gui/    Fenêtre, pages, widgets et traitements en arrière-plan
 src/shrimpit/assets/ Images, animations, son et police
 tests/              Tests automatisés
-scripts/            Vérification et préparation des exemples
+scripts/            Vérification, préparation des exemples et construction Windows
+packaging/          Recettes PyInstaller et Inno Setup
 docs/               Architecture et captures d’écran
 ```
 
 L’[architecture et les choix techniques](docs/architecture.md) décrivent l’organisation du code, les modes d’agrandissement, les grands exports et le format de l’historique.
 
-L’historique (`history.json`) et les journaux (`logs\`) sont enregistrés dans `%LOCALAPPDATA%\BlueShrimp\Shrimpit`, les préférences dans la clé de registre `HKEY_CURRENT_USER\Software\BlueShrimp\Shrimpit`. Supprimer ce dossier et cette clé remet l’application à zéro sans toucher aux images. Ces fichiers peuvent contenir des chemins personnels : ne les joignez pas publiquement sans les relire. Pour signaler un problème, indiquez la version de Python, les étapes de reproduction et utilisez une image non confidentielle.
+L’historique (`history.json`) et les journaux (`logs\`) sont enregistrés dans `%LOCALAPPDATA%\BlueShrimp\Shrimpit`, les préférences dans la clé de registre `HKEY_CURRENT_USER\Software\BlueShrimp\Shrimpit`. Supprimer ce dossier et cette clé remet l’application à zéro sans toucher aux images. Ces fichiers peuvent contenir des chemins personnels : ne les joignez pas publiquement sans les relire. Pour signaler un problème, indiquez la version de Shrimp'It (page Paramètres), la version de Python si vous lancez les sources, les étapes de reproduction, et utilisez une image non confidentielle.
 
 ## Pistes d’évolution
 
-- Exécutable Windows validé sur une machine sans Python, publié dans les GitHub Releases.
+- Publication de l’archive portable et de l’installateur dans les GitHub Releases, compilés automatiquement par GitHub Actions.
 - Préréglages expliqués (partage, site web, qualité élevée) avec estimation du poids.
 - Redimensionnement vers une taille maximale, y compris la réduction.
 - Import asynchrone pour les lots de plusieurs centaines d’images.
