@@ -26,6 +26,7 @@ htmlcov/
 # Builds and distribution artifacts
 build/
 dist/
+/release/
 *.whl
 *.egg
 

@@ -1,4 +1,5 @@
-# Build the Windows deliverables: portable ZIP and Inno Setup installer, both tested.
+# Build the Windows deliverables into release\: a portable ZIP and an Inno Setup installer, both tested.
+# The version comes from src\shrimpit\__init__.py and names every deliverable.
 param(
     [string]$Python = "",
     [switch]$SkipInstaller
@@ -6,10 +7,53 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-if (-not $Python) { $Python = Join-Path $projectRoot '.venv\Scripts\python.exe' }
+$venvPython = Join-Path $projectRoot '.venv\Scripts\python.exe'
+if (-not $Python) { $Python = $venvPython }
 $dist = Join-Path $projectRoot 'dist'
 $work = Join-Path $projectRoot 'build\pyinstaller'
-$bundle = Join-Path $dist 'Shrimpit'
+$release = Join-Path $projectRoot 'release'
+$bundle = Join-Path $dist 'ShrimpIt'
+$exeName = 'ShrimpIt.exe'
+
+function Get-AppVersion {
+    $source = Get-Content (Join-Path $projectRoot 'src\shrimpit\__init__.py') -Raw
+    if ($source -notmatch '__version__ = "(\d+\.\d+\.\d+)"') { throw '__version__ must be in the X.Y.Z form.' }
+    return $Matches[1]
+}
+
+function Initialize-BuildEnvironment {
+    # Create the project's virtual environment when it is missing, as described in the README.
+    if (-not (Test-Path $Python)) {
+        if ($Python -ne $venvPython) { throw "Python not found: $Python" }
+        $launcher = Get-Command py.exe -ErrorAction SilentlyContinue
+        if ($launcher) { & $launcher.Source -3 -m venv (Split-Path (Split-Path $venvPython)) }
+        else { & python.exe -m venv (Split-Path (Split-Path $venvPython)) }
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path $venvPython)) { throw 'Could not create .venv: install Python 3.11+.' }
+    }
+    & $Python -c "import struct, sys; sys.exit(sys.version_info < (3, 11) or struct.calcsize('P') != 8)"
+    if ($LASTEXITCODE -ne 0) { throw 'A 64-bit Python 3.11 or later is required.' }
+
+    # The build needs the runtime dependencies, PyInstaller, and Shrimp'It installed from this folder.
+    # Single quotes only: Windows PowerShell drops double quotes from native arguments.
+    $probe = @'
+import importlib.util, pathlib, sys
+missing = [name for name in ('PIL', 'PySide6', 'PyInstaller', 'shrimpit') if importlib.util.find_spec(name) is None]
+if not missing:
+    origin = pathlib.Path(importlib.util.find_spec('shrimpit').origin).resolve().parent
+    if origin != pathlib.Path('src/shrimpit').resolve():
+        missing.append('shrimpit (installed from another folder)')
+print(', '.join(missing))
+sys.exit(1 if missing else 0)
+'@
+    $missing = & $Python -c $probe
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Installing build dependencies (missing: $missing)"
+        & $Python -m pip install -e ".[build]"
+        if ($LASTEXITCODE -ne 0) { throw 'Could not install the build dependencies.' }
+        $missing = & $Python -c $probe
+        if ($LASTEXITCODE -ne 0) { throw "Build dependencies still missing: $missing" }
+    }
+}
 
 function Find-InnoSetup {
     $command = Get-Command ISCC.exe -ErrorAction SilentlyContinue
@@ -42,27 +86,59 @@ function Test-FrozenBuild([string]$Executable) {
     }
 }
 
+function New-PortableArchive([string]$Destination) {
+    # ShrimpIt.exe sits at the root of the archive: extract anywhere, then double-click it.
+    # Python writes standard '/' separators, unlike .NET Framework's ZipFile in Windows PowerShell.
+    Remove-Item $Destination -ErrorAction SilentlyContinue
+    $archiveBase = $Destination -replace '\.zip$', ''
+    & $Python -c "import shutil, sys; shutil.make_archive(sys.argv[1], 'zip', sys.argv[2])" $archiveBase $bundle
+    if ($LASTEXITCODE -ne 0) { throw 'Could not create the portable archive.' }
+
+    # Check the archive as a user would get it: extracted to a folder whose name contains spaces.
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [IO.Compression.ZipFile]::OpenRead($Destination)
+    try {
+        $names = $archive.Entries | ForEach-Object { $_.FullName }
+        if ($names -notcontains $exeName) { throw "$exeName is missing from the root of the archive." }
+        if ($names -match '\\') { throw 'The archive contains backslash-separated paths.' }
+    } finally {
+        $archive.Dispose()
+    }
+    $extracted = Join-Path $env:TEMP "ShrimpIt portable check $PID"
+    Remove-Item $extracted -Recurse -Force -ErrorAction SilentlyContinue
+    try {
+        [IO.Compression.ZipFile]::ExtractToDirectory($Destination, $extracted)
+        Test-FrozenBuild (Join-Path $extracted $exeName)
+    } finally {
+        Remove-Item $extracted -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
 Push-Location $projectRoot
 try {
-    $version = (& $Python -c "import shrimpit; print(shrimpit.__version__)").Trim()
-    if ($LASTEXITCODE -ne 0) { throw 'Shrimp''It is not installed in this environment.' }
+    $version = Get-AppVersion
+    $baseName = "ShrimpIt-v$version-Windows"
     Write-Host "Shrimp'It $version"
+    Initialize-BuildEnvironment
+    # Fail early, before the long PyInstaller step, when the installer cannot be built.
+    if (-not $SkipInstaller) { $iscc = Find-InnoSetup }
 
     & $Python -m PyInstaller --noconfirm --clean --log-level WARN --distpath $dist --workpath $work packaging\shrimpit.spec
     if ($LASTEXITCODE -ne 0) { throw 'PyInstaller build failed.' }
-    Test-FrozenBuild (Join-Path $bundle 'Shrimpit.exe')
 
-    $zip = Join-Path $dist "Shrimpit-$version-windows-x64-portable.zip"
-    Remove-Item $zip -ErrorAction SilentlyContinue
-    Compress-Archive -Path $bundle -DestinationPath $zip -CompressionLevel Optimal
+    New-Item -ItemType Directory -Force $release | Out-Null
+    $zip = Join-Path $release "$baseName-Portable.zip"
+    New-PortableArchive $zip
     $deliverables = @($zip)
 
     if (-not $SkipInstaller) {
-        $iscc = Find-InnoSetup
+        $setup = Join-Path $release "$baseName-Setup.exe"
+        Remove-Item $setup -ErrorAction SilentlyContinue
         $icon = Join-Path $work 'shrimpit\shrimpit.ico'
-        & $iscc /Q "/DAppVersion=$version" "/DSourceDir=$bundle" "/DOutputDir=$dist" "/DIconFile=$icon" packaging\shrimpit.iss
-        if ($LASTEXITCODE -ne 0) { throw 'Inno Setup compilation failed.' }
-        $deliverables += Join-Path $dist "Shrimpit-$version-windows-x64-setup.exe"
+        & $iscc /Q "/DAppVersion=$version" "/DOutputBaseName=$baseName-Setup" "/DSourceDir=$bundle" `
+            "/DOutputDir=$release" "/DIconFile=$icon" packaging\shrimpit.iss
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path $setup)) { throw 'Inno Setup compilation failed.' }
+        $deliverables += $setup
     }
 
     foreach ($file in $deliverables) {
@@ -70,6 +146,7 @@ try {
         $size = [math]::Round((Get-Item $file).Length / 1MB, 1)
         Write-Host "$([IO.Path]::GetFileName($file))  $size Mo  SHA-256 $hash"
     }
+    Write-Host "Deliverables written to $release"
 } finally {
     Pop-Location
 }

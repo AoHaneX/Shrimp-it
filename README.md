@@ -58,7 +58,9 @@ Le suffixe par défaut suit le facteur choisi (`-x2`, `-x3`, `-x4`) ou les dimen
 
 ## Installation et lancement
 
-Prérequis : **Windows 11**, **Python 3.11 ou supérieur** avec `pip`, et un accès Internet pour installer les dépendances. Les traitements fonctionnent ensuite localement.
+Sans Python : utilisez la version portable (`ShrimpIt-vX.Y.Z-Windows-Portable.zip`, à extraire puis lancer `ShrimpIt.exe`) ou l’installateur (`ShrimpIt-vX.Y.Z-Windows-Setup.exe`). Voir [Distribution Windows](docs/distribution-windows.md).
+
+Depuis les sources, prérequis : **Windows 11**, **Python 3.11 ou supérieur** avec `pip`, et un accès Internet pour installer les dépendances. Les traitements fonctionnent ensuite localement.
 
 Téléchargez ou clonez le dépôt, puis ouvrez PowerShell dans le dossier contenant `pyproject.toml` :
 
@@ -110,19 +112,13 @@ Le [workflow Checks](.github/workflows/checks.yml) lance ces contrôles et Bandi
 
 ### Version Windows autonome
 
-Le script de construction produit, dans `dist\`, une archive portable et un installateur qui embarquent Python et toutes les dépendances. Il nécessite [Inno Setup 6](https://jrsoftware.org/isinfo.php) pour l’installateur (`winget install JRSoftware.InnoSetup`) ; l’option `-SkipInstaller` ne produit que l’archive.
+Une seule commande produit, dans `release\`, l’archive portable et l’installateur, qui embarquent Python et toutes les dépendances. Elle nécessite [Inno Setup 6](https://jrsoftware.org/isinfo.php) (`winget install JRSoftware.InnoSetup`) ; l’option `-SkipInstaller` ne produit que l’archive.
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -e ".[build]"
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_windows.ps1
 ```
 
-| Fichier | Usage |
-| --- | --- |
-| `Shrimpit-<version>-windows-x64-portable.zip` | À extraire n’importe où, puis lancer `Shrimpit\Shrimpit.exe`. Aucune installation. |
-| `Shrimpit-<version>-windows-x64-setup.exe` | Installation pour l’utilisateur courant, sans droits administrateur, avec raccourci dans le menu Démarrer et désinstallation depuis les paramètres de Windows. |
-
-Avant de créer l’archive, le script lance `Shrimpit.exe --self-test` sans Python dans le `PATH` : ressources, formats, modes d’agrandissement, police, animations, son et fenêtre principale sont vérifiés dans un dossier temporaire, sans toucher aux préférences ni à l’historique. Les empreintes SHA-256 des fichiers produits sont affichées à la fin.
+Le script installe au besoin l’extra `build` dans `.venv`, puis lance `ShrimpIt.exe --self-test` sur l’archive extraite, sans Python dans le `PATH`. Outils, fichiers produits et préparation d’une nouvelle version : [Distribution Windows](docs/distribution-windows.md).
 
 ## Organisation et documentation
 
@@ -133,7 +129,7 @@ src/shrimpit/assets/ Images, animations, son et police
 tests/              Tests automatisés
 scripts/            Vérification, préparation des exemples et construction Windows
 packaging/          Recettes PyInstaller et Inno Setup
-docs/               Architecture et captures d’écran
+docs/               Architecture, distribution Windows et captures d’écran
 ```
 
 L’[architecture et les choix techniques](docs/architecture.md) décrivent l’organisation du code, les modes d’agrandissement, les grands exports et le format de l’historique.

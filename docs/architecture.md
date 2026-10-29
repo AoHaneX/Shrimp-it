@@ -11,12 +11,12 @@ Shrimpit/
 ├── pyproject.toml            Version, dépendances et outils
 ├── requirements-tested.txt   Versions directes de référence
 ├── LICENSE                   Licence du code
-├── docs/                     Ce document et les captures du README
+├── docs/                     Ce document, la distribution Windows et les captures du README
 ├── scripts/
 │   ├── check.ps1             Ruff, formatage et tests
 │   ├── security.ps1          pip check, Bandit et pip-audit
 │   ├── verify_compression.py Mesure des sorties de compression
-│   ├── build_windows.ps1     Version autonome : PyInstaller, autotest, ZIP et installateur
+│   ├── build_windows.ps1     Livrables Windows dans release\ : PyInstaller, ZIP, autotest, installateur
 │   └── build_preview_examples.py Régénération des exemples avant/après
 ├── packaging/                Recette PyInstaller, lanceur et script Inno Setup
 ├── .github/workflows/        Contrôles à chaque push et audit de sécurité hebdomadaire
@@ -154,25 +154,34 @@ Les droits des ressources sont décrits dans la section « Licence et ressources
 
 ## Distribution Windows
 
-`scripts/build_windows.ps1` enchaîne les étapes suivantes :
+`scripts/build_windows.ps1` enchaîne les étapes suivantes (mode d’emploi : [Distribution Windows](distribution-windows.md)) :
 
-1. PyInstaller construit un dossier `dist\Shrimpit\` (mode « un dossier », sans console) à partir de
+1. La version est lue dans `src/shrimpit/__init__.py` ; elle nomme les livrables
+   `ShrimpIt-vX.Y.Z-Windows-Portable.zip` et `ShrimpIt-vX.Y.Z-Windows-Setup.exe`, déposés dans `release\`.
+   L’interpréteur (3.11+, 64 bits) est vérifié et l’extra `build` installé dans `.venv` s’il manque.
+2. PyInstaller construit un dossier `dist\ShrimpIt\` (mode « un dossier », sans console) à partir de
    `packaging/shrimpit.spec`. L’icône `.ico` est générée depuis `branding/shrimpy.png` et les informations
    de version Windows depuis `shrimpit.__version__`.
-2. Le rendu OpenGL logiciel, Qt Quick/QML et les traductions Qt autres que le français sont retirés :
+3. Le rendu OpenGL logiciel, Qt Quick/QML et les traductions Qt autres que le français sont retirés :
    l’application n’utilise que Qt Widgets et Qt Multimedia (environ 116 Mo au lieu de 156 Mo).
-3. `Shrimpit.exe --self-test <rapport>` est lancé avec un `PATH` réduit aux dossiers de Windows et sans
+4. Le dossier est compressé avec `ShrimpIt.exe` à la racine de l’archive. Python écrit l’archive : le
+   `ZipFile` de .NET Framework utilisé par Windows PowerShell 5.1 produit des chemins avec `\`, que certains
+   outils d’extraction refusent.
+5. L’archive est extraite dans un dossier temporaire dont le nom contient des espaces, puis
+   `ShrimpIt.exe --self-test <rapport>` y est lancé avec un `PATH` réduit aux dossiers de Windows et sans
    variable `PYTHON*`. L’autotest (`selftest.py`) convertit les exemples dans les trois formats, essaie les
    trois modes d’agrandissement, décode les animations et le son, vérifie la traduction Qt et construit la
    fenêtre principale avec des préférences et un historique temporaires.
-4. Le dossier est compressé en `Shrimpit-<version>-windows-x64-portable.zip`, puis Inno Setup compile
-   `packaging/shrimpit.iss` en `Shrimpit-<version>-windows-x64-setup.exe`.
+6. Inno Setup compile `packaging/shrimpit.iss` ; le script lui transmet la version et le nom du fichier.
 
 L’installateur s’installe par défaut pour l’utilisateur courant (`{autopf}` sans droits administrateur),
 supprime `_internal\` avant une mise à jour pour ne garder aucune ancienne bibliothèque, et enregistre
 l’identifiant `BlueShrimp.Shrimpit` sur le raccourci pour que la barre des tâches regroupe les fenêtres.
 L’`AppId` de `shrimpit.iss` ne doit jamais changer : Windows l’utilise pour reconnaître les mises à jour.
-La désinstallation ne supprime ni les images ni `%LOCALAPPDATA%\BlueShrimp\Shrimpit`.
+La désinstallation ne supprime jamais les images. Elle propose de supprimer
+`%LOCALAPPDATA%\BlueShrimp\Shrimpit` et la clé `HKEY_CURRENT_USER\Software\BlueShrimp\Shrimpit` (réponse
+par défaut : non) ; une désinstallation silencieuse les conserve. Le dossier et la clé `BlueShrimp` parents ne
+sont retirés que s’ils sont vides, car d’autres applications ReefKit peuvent les utiliser.
 
 ## Vérifications
 

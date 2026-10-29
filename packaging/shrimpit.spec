@@ -38,9 +38,9 @@ VERSION_INFO = VSVersionInfo(
                         StringStruct("CompanyName", "BlueShrimp"),
                         StringStruct("FileDescription", "Shrimp'It"),
                         StringStruct("FileVersion", VERSION),
-                        StringStruct("InternalName", "Shrimpit"),
+                        StringStruct("InternalName", "ShrimpIt"),
                         StringStruct("LegalCopyright", "Code MIT · illustrations et sons : tous droits réservés"),
-                        StringStruct("OriginalFilename", "Shrimpit.exe"),
+                        StringStruct("OriginalFilename", "ShrimpIt.exe"),
                         StringStruct("ProductName", "Shrimp'It"),
                         StringStruct("ProductVersion", VERSION),
                     ],
@@ -75,10 +75,10 @@ exe = EXE(
     analysis.scripts,
     [],
     exclude_binaries=True,
-    name="Shrimpit",
+    name="ShrimpIt",
     console=False,
     icon=str(ICON),
     version=VERSION_INFO,
     upx=False,
 )
-COLLECT(exe, analysis.binaries, analysis.datas, name="Shrimpit", upx=False)
+COLLECT(exe, analysis.binaries, analysis.datas, name="ShrimpIt", upx=False)
