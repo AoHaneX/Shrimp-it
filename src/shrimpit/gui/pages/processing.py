@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from shrimpit.engine import EXTENSIONS
+from shrimpit.engine import EXTENSIONS, SUFFIXES
 from shrimpit.errors import ConversionError
 from shrimpit.examples import example_preview
 from shrimpit.filenames import validate_filename
@@ -26,7 +26,7 @@ from shrimpit.gui.pages.common import page_heading
 from shrimpit.gui.theme import icon
 from shrimpit.gui.widgets import DropZone, PreviewCard, label, panel
 from shrimpit.gui.workers import ExportJob, PreviewJob
-from shrimpit.processing import export_plan, image_info, readable_size, suggested_name
+from shrimpit.processing import export_plan, image_info, readable_size
 
 
 class ProcessingPage(QWidget):
@@ -249,9 +249,6 @@ class ProcessingPage(QWidget):
     def output_name(self, source, options=None):
         return self.output.output_name(source, self.infos[source].size, options)
 
-    def proposed_name(self, source, options=None):
-        return suggested_name(source, options or self.options(), self.infos[source].size)
-
     def clear_images(self):
         if self.job:
             return
@@ -373,50 +370,63 @@ class ProcessingPage(QWidget):
         self.output.store_name()
         options = self.options()
         try:
-            if len(self.sources) == 1:
-                source = self.sources[0]
-                name = self.output_name(source, options)
-                # Like a batch: reuse the last output folder and propose a free numbered name.
-                folder = Path(self.output_folder(source.parent))
-                if not folder.is_dir():
-                    folder = source.parent
-                suggestion = export_plan([source], folder, {source: name}, options)[0][1]
-                extensions = sorted(EXTENSIONS[options.output_format])
-                filename, _ = QFileDialog.getSaveFileName(
-                    self,
-                    "Enregistrer l’image",
-                    str(suggestion),
-                    f"{self.output.format.currentText()} ({' '.join('*' + e for e in extensions)})",
-                    options=QFileDialog.Option.DontConfirmOverwrite,
-                )
-                if not filename:
-                    return
-                destination = Path(filename)
-                if not destination.suffix:
-                    destination = destination.with_suffix(Path(self.proposed_name(source, options)).suffix)
-                validate_filename(destination.name)
-                # Refuse before switching screens: the engine never overwrites a file.
-                if destination.suffix.lower() not in extensions:
-                    raise ConversionError(
-                        f"l’extension {destination.suffix} ne correspond pas au format "
-                        f"{self.output.format.currentText()}. Utilisez {' ou '.join(extensions)}."
-                    )
-                if destination.exists():
-                    raise ConversionError(
-                        f"{destination.name} existe déjà. Les fichiers existants ne sont jamais "
-                        "remplacés : choisissez un autre nom."
-                    )
-                plan = [(source, destination)]
-            else:
-                initial = self.output_folder(self.sources[0].parent)
-                folder = QFileDialog.getExistingDirectory(self, "Choisir le dossier de sortie", initial)
-                if not folder:
-                    return
-                names = {source: self.output_name(source, options) for source in self.sources}
-                plan = export_plan(self.sources, Path(folder), names, options)
+            plan = (
+                self.single_export_plan(options)
+                if len(self.sources) == 1
+                else self.batch_export_plan(options)
+            )
         except Exception as exc:
             self.status.setText(f"Échec : {exc}")
             return
+        if plan:
+            self.launch_export(plan, options)
+
+    def single_export_plan(self, options):
+        """Ask for one destination; return None when the dialog is cancelled."""
+        source = self.sources[0]
+        name = self.output_name(source, options)
+        # Like a batch: reuse the last output folder and propose a free numbered name.
+        folder = Path(self.output_folder(source.parent))
+        if not folder.is_dir():
+            folder = source.parent
+        suggestion = export_plan([source], folder, {source: name}, options)[0][1]
+        extensions = sorted(EXTENSIONS[options.output_format])
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Enregistrer l’image",
+            str(suggestion),
+            f"{self.output.format.currentText()} ({' '.join('*' + e for e in extensions)})",
+            options=QFileDialog.Option.DontConfirmOverwrite,
+        )
+        if not filename:
+            return None
+        destination = Path(filename)
+        if not destination.suffix:
+            destination = destination.with_suffix(SUFFIXES[options.output_format])
+        validate_filename(destination.name)
+        # Refuse before switching screens: the engine never overwrites a file.
+        if destination.suffix.lower() not in extensions:
+            raise ConversionError(
+                f"l’extension {destination.suffix} ne correspond pas au format "
+                f"{self.output.format.currentText()}. Utilisez {' ou '.join(extensions)}."
+            )
+        if destination.exists():
+            raise ConversionError(
+                f"{destination.name} existe déjà. Les fichiers existants ne sont jamais "
+                "remplacés : choisissez un autre nom."
+            )
+        return [(source, destination)]
+
+    def batch_export_plan(self, options):
+        """Ask for an output folder; return None when the dialog is cancelled."""
+        initial = self.output_folder(self.sources[0].parent)
+        folder = QFileDialog.getExistingDirectory(self, "Choisir le dossier de sortie", initial)
+        if not folder:
+            return None
+        names = {source: self.output_name(source, options) for source in self.sources}
+        return export_plan(self.sources, Path(folder), names, options)
+
+    def launch_export(self, plan, options):
         if self.settings:
             self.settings.setValue("output_folder", str(plan[0][1].parent))
         self.preview_timer.stop()
