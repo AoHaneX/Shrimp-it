@@ -20,6 +20,7 @@ Shrimpit/
 │   └── build_preview_examples.py Régénération des exemples avant/après
 ├── packaging/                Recette PyInstaller, lanceur et script Inno Setup
 ├── .github/workflows/        Contrôles à chaque push et audit de sécurité hebdomadaire
+├── .github/dependabot.yml    Mises à jour hebdomadaires des actions (épinglées par SHA) et de pip
 ├── tests/                    Tests du moteur et de l’interface
 └── src/shrimpit/
     ├── __main__.py           Point d’entrée

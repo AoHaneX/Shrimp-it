@@ -108,7 +108,7 @@ Les outils de sécurité sont facultatifs ; la recherche de vulnérabilités né
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\security.ps1
 ```
 
-Le [workflow Checks](.github/workflows/checks.yml) lance ces contrôles et Bandit sous Windows avec Python 3.11 et 3.13, puis installe la wheel construite dans un environnement vierge et lance son autotest. La recherche de vulnérabilités ([workflow Security audit](.github/workflows/security.yml)) tourne chaque lundi et peut être lancée à la main : une faille publiée dans une dépendance est signalée sans bloquer les autres modifications.
+Le [workflow Checks](.github/workflows/checks.yml) lance ces contrôles et Bandit sous Windows avec Python 3.11 et 3.13, puis installe la wheel construite dans un environnement vierge et lance son autotest. La recherche de vulnérabilités ([workflow Security audit](.github/workflows/security.yml)) tourne chaque lundi et peut être lancée à la main : une faille publiée dans une dépendance est signalée sans bloquer les autres modifications. Les actions GitHub sont épinglées par empreinte de commit ; Dependabot propose chaque semaine leurs mises à jour et celles des dépendances Python.
 
 ### Version Windows autonome
 
