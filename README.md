@@ -79,7 +79,7 @@ L’installation crée aussi `.venv\Scripts\shrimpit.exe`, qui lance l’applica
 ## Limites à connaître
 
 - Entrées limitées aux **JPEG, PNG et WebP statiques de 25 mégapixels maximum**. Les GIF et animations ne sont pas pris en charge.
-- Sorties agrandies jusqu’à **400 MP**, sous réserve de mémoire disponible et des limites du format. L’aperçu automatique ne calcule pas les sorties de plus de 25 MP et la mémoire est vérifiée avant chaque grand export. Voir les [grands exports](docs/architecture.md#grands-exports).
+- Sorties agrandies jusqu’à **400 MP**, sous réserve de mémoire disponible et des limites du format (16 383 pixels par côté en WebP, 65 500 en JPEG, y compris en compression). L’aperçu automatique ne calcule pas les sorties de plus de 25 MP et la mémoire est vérifiée avant chaque grand export. Voir les [grands exports](docs/architecture.md#grands-exports).
 - Une optimisation peut produire un fichier plus volumineux. L’agrandissement interpole les pixels et ne recrée pas les détails absents.
 - JPEG et WebP sont encodés avec perte. PNG conserve les pixels après normalisation RGB/RGBA 8 bits ; les niveaux de gris 16 bits sont ramenés proportionnellement sur 8 bits. La transparence est conservée en PNG/WebP et remplacée par un fond blanc en JPEG.
 - L’orientation EXIF est appliquée ; les métadonnées, GPS et profils ICC sont ensuite retirés. Cette version n’est pas destinée à un flux colorimétrique exigeant ou à la conservation des images haute profondeur.

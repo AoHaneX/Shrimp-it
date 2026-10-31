@@ -137,8 +137,9 @@ def _process_image(
                 target_size = size or (width * scale, height * scale)
                 if size is not None and (size[0] < width or size[1] < height or size == (width, height)):
                     raise ConversionError("Les dimensions personnalisées doivent agrandir l'image.")
+                # Format limits apply to compression too: a 25 MP panorama can exceed the WebP side limit.
+                check_output_size(target_size, output_format)
                 if upscale_settings is not None:
-                    check_output_size(target_size, output_format)
                     check_export_memory((width, height), target_size, upscale_settings)
                 oriented = to_8_bit(ImageOps.exif_transpose(original))
                 input_size = oriented.size

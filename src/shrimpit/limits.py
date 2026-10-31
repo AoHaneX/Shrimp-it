@@ -10,6 +10,8 @@ MAX_INPUT_PIXELS = 25_000_000
 MAX_OUTPUT_PIXELS = 400_000_000
 # Outputs up to the input ceiling are previewed automatically and need no memory check.
 MAX_PREVIEW_PIXELS = MAX_INPUT_PIXELS
+# Largest side each encoder accepts: libjpeg and libwebp refuse bigger images when saving.
+MAX_SIDES = {"JPEG": 65_500, "WEBP": 16_383}
 
 
 def available_memory_bytes() -> int | None:
@@ -53,9 +55,12 @@ def check_output_size(size: tuple[int, int], output_format: str):
             f"{width} × {height} ({pixels / 1_000_000:.1f} MP). "
             "Choisissez un facteur plus petit ou des dimensions personnalisées."
         )
-    if output_format == "WEBP" and max(size) > 16383:
+    side = MAX_SIDES.get(output_format)
+    if side is not None and max(size) > side:
+        name = "WebP" if output_format == "WEBP" else output_format
+        limit = f"{side:,}".replace(",", " ")
         raise ConversionError(
-            f"WebP accepte au maximum 16 383 pixels par côté ; résultat demandé : {width} × {height}. "
+            f"{name} accepte au maximum {limit} pixels par côté ; résultat demandé : {width} × {height}. "
             "Choisissez PNG ou des dimensions plus petites."
         )
 

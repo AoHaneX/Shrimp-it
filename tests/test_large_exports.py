@@ -3,7 +3,7 @@
 import pytest
 from PIL import Image
 
-from shrimpit.engine import ConversionError, upscale_image
+from shrimpit.engine import ConversionError, convert_image, upscale_image
 from shrimpit.gui.workers import PreviewJob
 from shrimpit.limits import check_export_memory, check_output_size
 from shrimpit.processing import Options
@@ -24,6 +24,34 @@ def test_webp_side_limit_is_separate_from_pixel_count():
     check_output_size((16383, 16383), "WEBP")
     with pytest.raises(ConversionError, match="16 383"):
         check_output_size((16384, 1000), "WEBP")
+
+
+def test_jpeg_side_limit_is_checked():
+    check_output_size((65500, 10), "JPEG")
+    with pytest.raises(ConversionError, match="JPEG accepte au maximum 65 500"):
+        check_output_size((10, 65501), "JPEG")
+
+
+def test_compression_refuses_sides_beyond_the_format_limit(tmp_path):
+    source = tmp_path / "panorama.png"
+    Image.new("RGB", (16384, 2)).save(source)
+    with pytest.raises(ConversionError, match="16 383"):
+        convert_image(source, tmp_path / "panorama.webp", "WEBP")
+    assert not (tmp_path / "panorama.webp").exists()
+    convert_image(source, tmp_path / "panorama.jpg", "JPEG")
+
+
+def test_jpeg_side_limit_is_checked_before_resizing(tmp_path, monkeypatch):
+    source = tmp_path / "strip.png"
+    Image.new("RGB", (17000, 2)).save(source)
+
+    def unexpected_resize(*args, **kwargs):
+        pytest.fail("An impossible JPEG must be rejected before resizing")
+
+    monkeypatch.setattr("shrimpit.engine.resize_image", unexpected_resize)
+    with pytest.raises(ConversionError, match="68000 × 8"):
+        upscale_image(source, tmp_path / "strip.jpg", 4, "JPEG")
+    assert not (tmp_path / "strip.jpg").exists()
 
 
 @pytest.mark.parametrize("mode", ["photo", "illustration", "pixel_art"])

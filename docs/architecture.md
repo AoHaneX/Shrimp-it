@@ -102,7 +102,9 @@ wrapper Python/Windows maintenu, et son lissage modifie le dessin des pixels.
 ## Grands exports
 
 - Entrée limitée à 25 MP ; sortie d’agrandissement limitée à 400 MP (×4 d’une source de 25 MP).
-- WebP : 16 383 pixels maximum par côté, vérifiés avant traitement.
+- WebP : 16 383 pixels maximum par côté, JPEG : 65 500. Ces limites des encodeurs sont vérifiées avant le
+  décodage, en compression comme en agrandissement, pour éviter un calcul inutile et un message d’erreur
+  trompeur.
 - Aperçu automatique jusqu’à 25 MP de sortie ; au-delà, seul l’export complet est proposé.
 - Au-delà de 25 MP, `limits.py` lit la RAM disponible avec l’API Windows et estime le besoin :
   12 octets par pixel de sortie en Pixel Art, 20 en Illustration ou photo sans netteté, 32 avec netteté,
