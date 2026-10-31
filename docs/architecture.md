@@ -134,8 +134,11 @@ métadonnées, jamais d’image ni de miniature. Les dates sont en UTC.
 - Un JSON invalide, ou une date impossible à convertir en heure locale, est copié dans
   `history-invalid-<id>.json`, puis remplacé par un historique vide. Au-delà de 32 Mio, le fichier n’est
   pas chargé ; « Effacer tout l’historique » reste disponible et le remplace après confirmation.
-- Le fichier entier est réécrit à chaque image : suffisant pour quelques milliers d’entrées. Pour des
-  dizaines de milliers, il faudrait passer à SQLite et à une pagination.
+- Le fichier entier est réécrit à chaque image. Pour borner ce coût, seules les 5 000 dernières entrées
+  (`MAX_HISTORY_ENTRIES`) sont conservées : à chaque ajout, les références des lots les plus anciens sont
+  oubliées en premier, puis celles du lot en cours, sans jamais retirer l’entrée qui vient d’être ajoutée.
+  Mesuré sous Windows : environ 5 Mo et 0,2 s d’écriture au maximum, contre 0,9 s par image et un blocage au
+  plafond de 32 Mio (vers 31 000 entrées) sans cette limite. Les images ne sont jamais supprimées.
 - Dans l’interface, les lots se déplient par groupes de 20 et les miniatures sont décodées une à une hors
   du thread d’interface. Supprimer une référence ne supprime jamais l’image sur le disque.
 

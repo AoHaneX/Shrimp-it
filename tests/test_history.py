@@ -1,6 +1,7 @@
 """Verify durable metadata, failure recovery, and reference-only deletion."""
 
 import json
+from pathlib import Path
 from threading import Event, Thread, Timer
 
 import pytest
@@ -118,6 +119,32 @@ def test_atomic_write_failure_keeps_previous_history(record, tmp_path, monkeypat
         store.clear()
     assert store.path.read_bytes() == before
     assert not list(tmp_path.glob(".history-*"))
+
+
+def test_oldest_exports_are_forgotten_beyond_the_retention(record, tmp_path, monkeypatch):
+    monkeypatch.setattr("shrimpit.history.MAX_HISTORY_ENTRIES", 3)
+    store = HistoryStore(tmp_path / "history.json")
+    kept = []
+    for batch, day in (("old", 10), ("mid", 11)):
+        for index in range(2):
+            kept.append(record(store, batch, f"{batch}{index}", f"2026-10-{day}T12:00:00+00:00"))
+    record(store, "new", "new0", "2026-10-12T12:00:00+00:00")
+    assert [batch["id"] for batch in store.batches()] == ["new", "mid"]
+    record(store, "new", "new1", "2026-10-12T12:00:00+00:00")
+    batches = store.batches()
+    assert [len(batch["images"]) for batch in batches] == [2, 1]
+    assert batches[1]["images"][0]["source"].endswith("mid1.png")
+    # Forgetting a reference never touches the files on disk.
+    assert all(path.exists() for pair in kept for path in pair)
+
+
+def test_a_batch_larger_than_the_retention_keeps_its_latest_exports(record, tmp_path, monkeypatch):
+    monkeypatch.setattr("shrimpit.history.MAX_HISTORY_ENTRIES", 2)
+    store = HistoryStore(tmp_path / "history.json")
+    for index in range(4):
+        record(store, name=f"photo{index}")
+    names = [Path(entry["source"]).name for entry in store.batches()[0]["images"]]
+    assert names == ["photo2.png", "photo3.png"]
 
 
 def test_multiple_store_instances_preserve_existing_batches(record, tmp_path):

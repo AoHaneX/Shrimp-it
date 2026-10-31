@@ -45,7 +45,7 @@ Ces algorithmes calculent une image plus grande à partir des pixels existants :
 - **Import multiple** par sélection de fichiers ou glisser-déposer, pour les JPEG, PNG et WebP statiques.
 - **Comparaison avant/après** avec séparation mobile (souris, curseur ou flèches du clavier) ou affichage côte à côte, dimensions et poids. Des exemples apparaissent lorsqu’aucune image n’est chargée.
 - **Traitement par lots** avec progression, bilan et annulation après l’image en cours. Les conflits de noms sont numérotés pour préserver les fichiers existants.
-- **Historique local** des exports réussis, avec miniatures et paramètres. Supprimer une entrée ne supprime pas les images.
+- **Historique local** des 5 000 derniers exports réussis, avec miniatures et paramètres. Au-delà, les références les plus anciennes sont oubliées automatiquement. Supprimer une entrée ne supprime pas les images.
 - **Paramètres** pour les valeurs par défaut, l’animation du menu, le son et les notifications de fin, selon leur disponibilité sous Windows.
 
 ### Nommer tout un lot

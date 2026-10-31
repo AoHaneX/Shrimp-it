@@ -18,6 +18,8 @@ from shrimpit.processing import options_for_source
 from shrimpit.resources import data_directory
 
 MAX_HISTORY_BYTES = 32 * 1024 * 1024
+# Each export rewrites the whole file: keeping the latest exports bounds its size and write time.
+MAX_HISTORY_ENTRIES = 5000
 LOCK_TIMEOUT = 2.0
 
 
@@ -78,6 +80,26 @@ def validate_document(data):
                 ):
                     raise ValueError("Invalid dimensions")
     return data
+
+
+def forget_oldest(batches, current):
+    """Drop the oldest references beyond MAX_HISTORY_ENTRIES; the newest entry is always kept."""
+    excess = sum(len(batch["images"]) for batch in batches) - MAX_HISTORY_ENTRIES
+    if excess <= 0:
+        return
+    # Older batches go first; the batch being written is trimmed last.
+    ordered = sorted(
+        (batch for batch in batches if batch is not current),
+        key=lambda batch: datetime.fromisoformat(batch["created_at"]),
+    )
+    for batch in [*ordered, current]:
+        removable = len(batch["images"]) - (1 if batch is current else 0)
+        removed = min(excess, removable)
+        del batch["images"][:removed]
+        excess -= removed
+        if excess <= 0:
+            break
+    batches[:] = [batch for batch in batches if batch["images"]]
 
 
 class HistoryStore:
@@ -202,6 +224,7 @@ class HistoryStore:
                 batch = {"id": batch_id, "created_at": created_at, "images": []}
                 batches.append(batch)
             batch["images"].append(entry)
+            forget_oldest(batches, batch)
 
         self._update(append)
 
