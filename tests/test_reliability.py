@@ -208,6 +208,35 @@ def test_logs_are_local_and_bounded(tmp_path, monkeypatch):
         logger.handlers[:] = old_handlers
 
 
+def test_log_rotation_refused_by_another_instance_keeps_the_record(tmp_path, monkeypatch):
+    from shrimpit.diagnostics import SharedRotatingFileHandler
+
+    handler = SharedRotatingFileHandler(
+        tmp_path / "shrimpit.log", maxBytes=50, backupCount=2, encoding="utf-8"
+    )
+    logger = logging.getLogger("shrimpit.rotation-test")
+    logger.propagate = False
+    logger.addHandler(handler)
+    try:
+        logger.error("First message long enough to request a rotation")
+
+        def locked(source, destination):
+            raise PermissionError("The other instance holds the file open")
+
+        monkeypatch.setattr(handler, "rotate", locked)
+        monkeypatch.setattr(handler, "handleError", lambda record: pytest.fail("Record lost"))
+        logger.error("Second message written despite the refused rotation")
+        monkeypatch.undo()
+        logger.error("Third message rotates normally")
+    finally:
+        logger.removeHandler(handler)
+        handler.close()
+    text = "".join(path.read_text(encoding="utf-8") for path in tmp_path.glob("shrimpit.log*"))
+    for word in ("First", "Second", "Third"):
+        assert word in text
+    assert (tmp_path / "shrimpit.log.1").exists()
+
+
 def test_startup_failure_is_logged_and_reported(qt_application, tmp_path, monkeypatch, caplog):
     import sys
 

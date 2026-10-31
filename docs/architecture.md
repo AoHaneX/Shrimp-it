@@ -67,6 +67,8 @@ Shrimpit/
   En cas d’erreur gérée, le fichier partiel est supprimé.
 - Les erreurs de Pillow et du système sont traduites par `errors.describe_error` ; le détail technique
   reste dans les journaux (`%LOCALAPPDATA%\BlueShrimp\Shrimpit\logs`, trois fichiers de 1 Mo au maximum).
+  Si une autre instance garde le journal ouvert, Windows refuse sa rotation : l’écriture continue alors dans
+  le fichier courant, qui peut dépasser temporairement 1 Mo, au lieu de perdre le message.
 - Les pixels sont normalisés en RGB/RGBA 8 bits ; l’orientation EXIF est appliquée, puis les métadonnées
   et profils ICC sont retirés en recréant l’image. Les niveaux de gris 16 bits (`I;16`) sont divisés par
   256 avant conversion, car une conversion directe de Pillow écrête les valeurs et blanchit l’image.
