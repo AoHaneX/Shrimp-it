@@ -1,9 +1,10 @@
 """Reusable painted backgrounds, drop zones, and image previews."""
 
+from functools import lru_cache
 from pathlib import Path
 
 from PySide6.QtCore import QRect, QRectF, Qt, Signal
-from PySide6.QtGui import QBitmap, QColor, QPainter, QPixmap, QRegion
+from PySide6.QtGui import QBitmap, QBrush, QColor, QImage, QPainter, QPixmap, QRegion
 from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from shrimpit.gui.theme import icon
@@ -27,15 +28,25 @@ def panel(role: str = "panel"):
     return frame, layout
 
 
+@lru_cache(maxsize=1)
+def checkerboard_tile() -> QImage:
+    """Two light and two dark 12 px squares, repeated by a texture brush."""
+    tile = QImage(24, 24, QImage.Format.Format_RGB32)
+    tile.fill(QColor("#173247"))
+    painter = QPainter(tile)
+    painter.fillRect(12, 0, 12, 12, QColor("#234259"))
+    painter.fillRect(0, 12, 12, 12, QColor("#234259"))
+    painter.end()
+    return tile
+
+
 def paint_checkerboard(painter: QPainter, area: QRect | QRectF):
-    """Paint the transparency pattern shown behind previews."""
+    """Paint the transparency pattern shown behind previews, starting with a light square."""
     area = QRectF(area).toRect()
     painter.save()
-    painter.setClipRect(area)
-    for x in range(area.left(), area.right() + 1, 12):
-        for y in range(area.top(), area.bottom() + 1, 12):
-            dark = ((x - area.left()) // 12 + (y - area.top()) // 12) % 2
-            painter.fillRect(x, y, 12, 12, QColor("#234259" if dark else "#173247"))
+    # One textured fill instead of a Python loop per square: this runs on every divider move.
+    painter.setBrushOrigin(area.topLeft())
+    painter.fillRect(area, QBrush(checkerboard_tile()))
     painter.restore()
 
 

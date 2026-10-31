@@ -4,14 +4,15 @@ from io import BytesIO
 
 import pytest
 from PIL import Image
-from PySide6.QtCore import QPoint, QPointF, Qt
-from PySide6.QtGui import QColor, QMouseEvent, QPixmap
+from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt
+from PySide6.QtGui import QColor, QImage, QMouseEvent, QPainter, QPixmap
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from shrimpit.examples import example_preview
 from shrimpit.gui.comparison import ComparisonPreview
 from shrimpit.gui.pages.processing import ProcessingPage
+from shrimpit.gui.widgets import paint_checkerboard
 
 
 def pixmap(color, width=120, height=80):
@@ -193,3 +194,21 @@ def test_empty_loading_canvas_renders_without_dimensions():
         assert not preview.slider.isEnabled()
     finally:
         preview.close()
+
+
+@pytest.mark.parametrize("area", [QRect(0, 0, 100, 70), QRect(5, 7, 61, 43), QRectF(3.4, 2.6, 30.2, 25.1)])
+def test_checkerboard_matches_the_square_layout(area):
+    image = QImage(110, 80, QImage.Format.Format_RGB32)
+    image.fill(QColor("black"))
+    painter = QPainter(image)
+    paint_checkerboard(painter, area)
+    painter.end()
+    bounds = QRectF(area).toRect()
+    for x in range(image.width()):
+        for y in range(image.height()):
+            if not bounds.contains(x, y):
+                expected = "#000000"
+            else:
+                dark = ((x - bounds.left()) // 12 + (y - bounds.top()) // 12) % 2
+                expected = "#234259" if dark else "#173247"
+            assert image.pixelColor(x, y).name() == expected, (x, y)
