@@ -123,3 +123,22 @@ def test_progressive_rows_ignore_pending_callbacks_after_deletion(record, wait_f
     finally:
         page.shutdown()
         page.close()
+
+
+def test_recovery_warning_is_shown_once_with_the_summary(record, tmp_path):
+    path = tmp_path / "history.json"
+    path.write_text("{broken", encoding="utf-8")
+    store = HistoryStore(path)
+    page = HistoryPage(store)
+    try:
+        assert "Historique illisible" in page.status.text()
+        assert "Aucun traitement dans l’historique" in page.status.text()
+        record(store)
+        page.reload()
+        assert page.status.text().startswith("1 lot(s)")
+        store.warning = "Historique illisible. Une copie a été conservée : copie.json"
+        store.clear()
+        assert store.warning == ""
+    finally:
+        page.shutdown()
+        page.close()

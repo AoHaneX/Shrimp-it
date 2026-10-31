@@ -247,5 +247,6 @@ class HistoryStore:
         try:
             with self._locked():
                 self._write({"version": 1, "batches": []})
+            self.warning = ""
         except OSError as exc:
             raise HistoryError(f"Impossible d’effacer l’historique : {exc}") from exc

@@ -195,14 +195,14 @@ class HistoryPage(QWidget):
             self.status.setText(str(exc))
             self.clear_button.setEnabled(True)
             return
-        self.status.setText(
-            self.store.warning
-            or (
-                f"{len(batches)} lot(s) · Dépliez un lot puis cliquez sur une image pour voir ses détails."
-                if batches
-                else "Aucun traitement dans l’historique"
-            )
+        summary = (
+            f"{len(batches)} lot(s) · Dépliez un lot puis cliquez sur une image pour voir ses détails."
+            if batches
+            else "Aucun traitement dans l’historique"
         )
+        # Show a recovery warning once, above the usual summary, instead of for the whole session.
+        warning, self.store.warning = self.store.warning, ""
+        self.status.setText(f"{warning}\n{summary}" if warning else summary)
         self.clear_button.setEnabled(bool(batches))
         for batch in batches:
             self.batches_by_id[batch["id"]] = batch
