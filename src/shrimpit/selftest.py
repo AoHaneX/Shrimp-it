@@ -1,5 +1,6 @@
 """Check an installed or packaged copy without touching the user's files or settings."""
 
+import sys
 import traceback
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -11,6 +12,7 @@ from PySide6.QtMultimedia import QMediaPlayer
 
 from shrimpit import __version__
 from shrimpit.engine import convert_image, upscale_image
+from shrimpit.limits import available_memory_bytes
 from shrimpit.resources import (
     ASSETS,
     BACKGROUND,
@@ -66,6 +68,15 @@ def check_enlargement(folder):
             raise AssertionError(f"{mode} enlargement has the wrong size")
 
 
+def check_memory(folder):
+    """Large exports depend on the Windows memory query: a broken call would refuse all of them."""
+    if sys.platform != "win32":
+        return
+    available = available_memory_bytes()
+    if not available or available <= 0:
+        raise AssertionError(f"available memory cannot be read: {available}")
+
+
 def check_sound(folder):
     """Decode the completion sound without playing it: this loads Qt's FFmpeg backend."""
     player = QMediaPlayer()
@@ -117,6 +128,7 @@ CHECKS = (
     ("Ressources de l’application", check_assets),
     ("Compression JPEG, PNG et WebP", check_formats),
     ("Agrandissement Photographie, Illustration et Pixel Art", check_enlargement),
+    ("Mémoire disponible pour les grands exports", check_memory),
     ("Police, animations et traduction Qt", check_qt_resources),
     ("Son de fin de traitement", check_sound),
     ("Fenêtre principale", check_window),

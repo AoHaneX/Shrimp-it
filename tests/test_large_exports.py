@@ -1,11 +1,13 @@
 """Validate large-export guards without allocating huge images in unit tests."""
 
+import sys
+
 import pytest
 from PIL import Image
 
 from shrimpit.engine import ConversionError, convert_image, upscale_image
 from shrimpit.gui.workers import PreviewJob
-from shrimpit.limits import check_export_memory, check_output_size
+from shrimpit.limits import available_memory_bytes, check_export_memory, check_output_size
 from shrimpit.processing import Options
 from shrimpit.upscale import UpscaleSettings
 
@@ -52,6 +54,14 @@ def test_jpeg_side_limit_is_checked_before_resizing(tmp_path, monkeypatch):
     with pytest.raises(ConversionError, match="68000 × 8"):
         upscale_image(source, tmp_path / "strip.jpg", 4, "JPEG")
     assert not (tmp_path / "strip.jpg").exists()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="GlobalMemoryStatusEx is a Windows API")
+def test_available_memory_is_read_from_windows():
+    # The other tests replace this call; this one checks the real ctypes structure.
+    available = available_memory_bytes()
+    assert type(available) is int
+    assert 0 < available < 2**50
 
 
 @pytest.mark.parametrize("mode", ["photo", "illustration", "pixel_art"])

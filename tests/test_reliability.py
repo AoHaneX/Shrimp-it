@@ -208,6 +208,31 @@ def test_logs_are_local_and_bounded(tmp_path, monkeypatch):
         logger.handlers[:] = old_handlers
 
 
+def test_startup_failure_is_logged_and_reported(qt_application, tmp_path, monkeypatch, caplog):
+    import sys
+
+    import shrimpit.__main__ as entry
+
+    messages = []
+
+    def broken_window():
+        raise RuntimeError("Simulated window failure")
+
+    # main() replaces sys.excepthook: monkeypatch restores the original after the test.
+    monkeypatch.setattr(sys, "excepthook", sys.excepthook)
+    monkeypatch.setattr(sys, "argv", ["shrimpit"])
+    monkeypatch.setattr(entry, "configure_logging", lambda: tmp_path)
+    monkeypatch.setattr(entry, "set_taskbar_identity", lambda: None)
+    monkeypatch.setattr(entry, "install_french_translation", lambda app: None)
+    monkeypatch.setattr(entry, "QApplication", lambda arguments: qt_application)
+    monkeypatch.setattr(entry, "MainWindow", broken_window)
+    monkeypatch.setattr(entry.QMessageBox, "critical", lambda *args: messages.append(args[2]))
+    assert entry.main() == 1
+    assert sys.excepthook is not sys.__excepthook__
+    assert "Simulated window failure" in caplog.text
+    assert messages == [f"Une erreur inattendue est survenue.\nDiagnostic : {tmp_path / 'shrimpit.log'}"]
+
+
 def test_taskbar_identity_failure_does_not_stop_startup(monkeypatch, caplog):
     from types import SimpleNamespace
 

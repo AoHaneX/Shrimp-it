@@ -178,7 +178,8 @@ Les droits des ressources sont décrits dans la section « Licence et ressources
 5. L’archive est extraite dans un dossier temporaire dont le nom contient des espaces, puis
    `ShrimpIt.exe --self-test <rapport>` y est lancé avec un `PATH` réduit aux dossiers de Windows et sans
    variable `PYTHON*`. L’autotest (`selftest.py`) convertit les exemples dans les trois formats, essaie les
-   trois modes d’agrandissement, décode les animations et le son, vérifie la traduction Qt et construit la
+   trois modes d’agrandissement, lit la mémoire disponible avec l’API Windows utilisée pour les grands
+   exports, décode les animations et le son, vérifie la traduction Qt et construit la
    fenêtre principale avec des préférences et un historique temporaires.
 6. Inno Setup compile `packaging/shrimpit.iss` ; le script lui transmet la version et le nom du fichier.
 
