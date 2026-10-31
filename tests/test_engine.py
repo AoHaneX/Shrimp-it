@@ -4,7 +4,7 @@ import pytest
 from PIL import Image
 
 from shrimpit.engine import ConversionError, convert_image
-from shrimpit.processing import thumbnail
+from shrimpit.processing import image_info, thumbnail
 
 
 @pytest.fixture
@@ -179,3 +179,26 @@ def test_import_errors_are_explained_in_french(source, tmp_path, kind, expected)
         path.write_bytes(path.read_bytes()[:200])
     with pytest.raises(ConversionError, match=expected):
         thumbnail(path)
+
+
+@pytest.mark.parametrize(
+    ("kind", "message"),
+    [("gif", "Format non pris en charge"), ("animated", "animées"), ("huge", "25 mégapixels")],
+)
+def test_import_and_export_share_the_same_input_rules(tmp_path, monkeypatch, kind, message):
+    monkeypatch.setattr("shrimpit.engine.MAX_INPUT_PIXELS", 50)
+    if kind == "gif":
+        source = tmp_path / "image.gif"
+        Image.new("RGB", (4, 4)).save(source)
+    elif kind == "animated":
+        source = tmp_path / "image.webp"
+        frames = [Image.new("RGB", (4, 4), color) for color in ("red", "blue")]
+        frames[0].save(source, save_all=True, append_images=frames[1:])
+    else:
+        source = tmp_path / "image.png"
+        Image.new("RGB", (8, 8)).save(source)
+    with pytest.raises(ConversionError, match=message) as imported:
+        image_info(source)
+    with pytest.raises(ConversionError, match=message) as exported:
+        convert_image(source, tmp_path / "out.png", "PNG")
+    assert str(imported.value) == str(exported.value)

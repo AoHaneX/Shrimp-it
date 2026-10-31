@@ -1,6 +1,5 @@
 """Image metadata, previews, and export planning without Qt."""
 
-import warnings
 from dataclasses import dataclass, replace
 from io import BytesIO
 from pathlib import Path
@@ -12,13 +11,13 @@ from shrimpit.engine import (
     SUFFIXES,
     ConversionError,
     convert_image,
+    open_checked,
     oriented_size,
     to_8_bit,
     upscale_image,
 )
 from shrimpit.errors import describe_error
 from shrimpit.filenames import validate_filename
-from shrimpit.limits import MAX_INPUT_PIXELS
 from shrimpit.upscale import UpscaleSettings
 
 
@@ -50,16 +49,8 @@ def image_info(path: Path) -> ImageInfo:
         # Windows reports folders as permission errors when Pillow opens them.
         raise ConversionError(describe_error(IsADirectoryError()))
     try:
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", Image.DecompressionBombWarning)
-            with Image.open(path) as image:
-                if image.format not in EXTENSIONS:
-                    raise ConversionError("Format non pris en charge : JPEG, PNG ou WebP attendu.")
-                if getattr(image, "n_frames", 1) != 1:
-                    raise ConversionError("Les images animées ne sont pas prises en charge.")
-                if image.width * image.height > MAX_INPUT_PIXELS:
-                    raise ConversionError("Cette image dépasse 25 mégapixels.")
-                return ImageInfo(path, oriented_size(image), path.stat().st_size, image.format)
+        with open_checked(path) as image:
+            return ImageInfo(path, oriented_size(image), path.stat().st_size, image.format)
     except READ_ERRORS as exc:
         raise ConversionError(describe_error(exc)) from exc
 

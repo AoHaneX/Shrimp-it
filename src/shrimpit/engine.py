@@ -1,6 +1,7 @@
 """Image processing without a Qt dependency."""
 
 import warnings
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -16,6 +17,24 @@ EXTENSIONS = {"JPEG": {".jpg", ".jpeg"}, "PNG": {".png"}, "WEBP": {".webp"}}
 SUFFIXES = {"JPEG": ".jpg", "PNG": ".png", "WEBP": ".webp"}
 HIGH_DEPTH_GRAYSCALE = {"I", "I;16", "I;16L", "I;16B", "I;16N"}
 EXIF_ORIENTATION = 274
+
+
+@contextmanager
+def open_checked(path: Path):
+    """Open a static JPEG, PNG or WebP of at most 25 MP; the header is read, pixels are not decoded.
+
+    Decompression bomb warnings raise for the whole block, decoding included.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", Image.DecompressionBombWarning)
+        with Image.open(path) as image:
+            if image.format not in EXTENSIONS:
+                raise ConversionError("Format non pris en charge : JPEG, PNG ou WebP attendu.")
+            if getattr(image, "n_frames", 1) != 1:
+                raise ConversionError("Les images animées ne sont pas prises en charge.")
+            if image.width * image.height > MAX_INPUT_PIXELS:
+                raise ConversionError("Les images sont limitées à 25 mégapixels.")
+            yield image
 
 
 def oriented_size(image: Image.Image) -> tuple[int, int]:
@@ -129,29 +148,21 @@ def _process_image(
     created = False
     try:
         input_bytes = source.stat().st_size
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", Image.DecompressionBombWarning)
-            with Image.open(source) as original:
-                if original.format not in EXTENSIONS:
-                    raise ConversionError("Formats d'entrée acceptés : JPEG, PNG et WebP.")
-                if getattr(original, "n_frames", 1) != 1:
-                    raise ConversionError("Les images animées ne sont pas prises en charge.")
-                if original.width * original.height > MAX_INPUT_PIXELS:
-                    raise ConversionError("Les images d'entrée sont limitées à 25 mégapixels.")
-                width, height = oriented_size(original)
-                target_size = size or (width * scale, height * scale)
-                if size is not None and (size[0] < width or size[1] < height or size == (width, height)):
-                    raise ConversionError("Les dimensions personnalisées doivent agrandir l'image.")
-                # Format limits apply to compression too: a 25 MP panorama can exceed the WebP side limit.
-                check_output_size(target_size, output_format)
-                if upscale_settings is not None:
-                    check_export_memory((width, height), target_size, upscale_settings)
-                oriented = to_8_bit(ImageOps.exif_transpose(original))
-                input_size = oriented.size
-                has_alpha = "A" in oriented.getbands() or "transparency" in oriented.info
-                pixels = oriented.convert("RGBA" if has_alpha else "RGB")
-                # Create a new image to remove EXIF, GPS, text, and ICC metadata.
-                clean = Image.frombytes(pixels.mode, pixels.size, pixels.tobytes())
+        with open_checked(source) as original:
+            width, height = oriented_size(original)
+            target_size = size or (width * scale, height * scale)
+            if size is not None and (size[0] < width or size[1] < height or size == (width, height)):
+                raise ConversionError("Les dimensions personnalisées doivent agrandir l'image.")
+            # Format limits apply to compression too: a 25 MP panorama can exceed the WebP side limit.
+            check_output_size(target_size, output_format)
+            if upscale_settings is not None:
+                check_export_memory((width, height), target_size, upscale_settings)
+            oriented = to_8_bit(ImageOps.exif_transpose(original))
+            input_size = oriented.size
+            has_alpha = "A" in oriented.getbands() or "transparency" in oriented.info
+            pixels = oriented.convert("RGBA" if has_alpha else "RGB")
+            # Create a new image to remove EXIF, GPS, text, and ICC metadata.
+            clean = Image.frombytes(pixels.mode, pixels.size, pixels.tobytes())
 
         if target_size != clean.size:
             clean = resize_image(clean, target_size, upscale_settings or UpscaleSettings(sharpen=False))
