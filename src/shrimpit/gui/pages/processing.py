@@ -334,16 +334,22 @@ class ProcessingPage(QWidget):
             return
         before, after, result = payload
         self.preview_payload = payload
+        # Enlargement previews skip PNG optimization (see PreviewJob): their weight is an estimate.
+        estimated = self.enlarge and result.destination.suffix.lower() == ".png"
+        prefix = "≈ " if estimated else ""
         self.before.display(before, result.input_size, readable_size(result.input_bytes))
-        self.after.display(after, result.output_size, readable_size(result.output_bytes))
+        self.after.display(after, result.output_size, prefix + readable_size(result.output_bytes))
         self.sync_comparison()
         difference = result.input_bytes - result.output_bytes
         change = (
-            f"Gain : {readable_size(difference)}"
+            f"Gain : {prefix}{readable_size(difference)}"
             if difference >= 0
-            else f"Plus volumineux de {readable_size(-difference)}"
+            else f"Plus volumineux de {prefix}{readable_size(-difference)}"
         )
-        self.preview_status.setText(f"{change} · Aperçu calculé, aucun fichier enregistré.")
+        status = f"{change} · Aperçu calculé, aucun fichier enregistré."
+        if estimated:
+            status += " Poids PNG estimé : l’export optimisé est généralement un peu plus léger."
+        self.preview_status.setText(status)
 
     @Slot(int, str)
     def preview_failed(self, revision, message):

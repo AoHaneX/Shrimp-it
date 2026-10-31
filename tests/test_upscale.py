@@ -72,3 +72,15 @@ def test_enlargement_other_formats(tmp_path, fmt, extension):
             assert min(image.getpixel((5, 5))) >= 250
         else:
             assert image.getpixel((5, 5))[3] == 0
+
+
+def test_fast_png_keeps_pixels_and_skips_optimization(tmp_path):
+    source = tmp_path / "source.png"
+    image = Image.new("RGBA", (24, 16), (40, 100, 200, 128))
+    image.paste((250, 30, 10, 255), (0, 0, 12, 8))
+    image.save(source)
+    optimized = upscale_image(source, tmp_path / "optimized.png", 3)
+    fast = upscale_image(source, tmp_path / "fast.png", 3, fast_png=True)
+    with Image.open(optimized.destination) as first, Image.open(fast.destination) as second:
+        assert first.tobytes() == second.tobytes()
+    assert fast.output_bytes >= optimized.output_bytes

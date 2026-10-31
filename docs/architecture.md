@@ -106,6 +106,9 @@ wrapper Python/Windows maintenu, et son lissage modifie le dessin des pixels.
   décodage, en compression comme en agrandissement, pour éviter un calcul inutile et un message d’erreur
   trompeur.
 - Aperçu automatique jusqu’à 25 MP de sortie ; au-delà, seul l’export complet est proposé.
+- L’aperçu d’agrandissement encode le PNG sans optimisation (`fast_png`) : pixels identiques, environ six fois
+  plus rapide sur une sortie de 16 MP (1,1 s au lieu de 6,7 s), mais fichier un peu plus lourd. Son poids est
+  donc affiché comme une estimation (« ≈ »). L’export et l’aperçu de compression restent optimisés.
 - Au-delà de 25 MP, `limits.py` lit la RAM disponible avec l’API Windows et estime le besoin :
   12 octets par pixel de sortie en Pixel Art, 20 en Illustration ou photo sans netteté, 32 avec netteté,
   plus 16 octets par pixel source et 128 Mio de marge. L’estimation doit tenir dans 80 % de la RAM

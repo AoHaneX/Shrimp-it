@@ -71,7 +71,8 @@ class PreviewJob(QThread):
                 return
         with TemporaryDirectory(prefix="shrimpit-preview-") as folder:
             destination = Path(folder) / suggested_name(self.source, self.options)
-            result = process(self.source, destination, self.options)
+            # Optimized PNG encoding dominates large enlargement previews; compression keeps exact weights.
+            result = process(self.source, destination, self.options, fast_png=self.options.enlarge)
             if self.isInterruptionRequested():
                 return
             after = thumbnail(destination, pixel_art=pixel_art)

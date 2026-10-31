@@ -88,7 +88,8 @@ def options_for_source(source: Path, options: Options, source_size=None) -> Opti
     return options
 
 
-def process(source: Path, destination: Path, options: Options):
+def process(source: Path, destination: Path, options: Options, *, fast_png: bool = False):
+    """Run the export; ``fast_png`` only applies to enlargements, whose PNG weight is then estimated."""
     options = options_for_source(source, options)
     if options.enlarge:
         return upscale_image(
@@ -99,6 +100,7 @@ def process(source: Path, destination: Path, options: Options):
             options.quality,
             options.size,
             settings=options.upscale,
+            fast_png=fast_png,
         )
     return convert_image(source, destination, options.output_format, options.quality)
 

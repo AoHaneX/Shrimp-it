@@ -78,3 +78,26 @@ def test_sharpness_controls_trigger_new_preview(wait_for, window, qt_application
     with Image.open(BytesIO(sharpened)) as first, Image.open(BytesIO(plain)) as second:
         assert first.tobytes() != second.tobytes()
     assert page.output.upscale_controls.amount.isHidden()
+
+
+@pytest.mark.parametrize("enlarge", [False, True])
+def test_only_enlargement_previews_use_fast_png(wait_for, window, tmp_path, monkeypatch, enlarge):
+    from shrimpit.gui import workers
+
+    calls = []
+    original = workers.process
+
+    def spy(*args, **kwargs):
+        calls.append(kwargs.get("fast_png", False))
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(workers, "process", spy)
+    page = window.enlargement if enlarge else window.compression
+    page.output.format.setCurrentText("PNG")
+    source = tmp_path / "source.png"
+    Image.new("RGB", (16, 12), (60, 120, 180)).save(source)
+    page.add_files([source])
+    wait_for(lambda: page.preview_payload is not None and page.preview_job is None)
+    assert calls and set(calls) == {enlarge}
+    assert ("≈" in page.after.details.text()) == enlarge
+    assert ("Poids PNG estimé" in page.preview_status.text()) == enlarge
