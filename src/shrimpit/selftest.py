@@ -13,6 +13,7 @@ from PySide6.QtMultimedia import QMediaPlayer
 from shrimpit import __version__
 from shrimpit.engine import convert_image, upscale_image
 from shrimpit.limits import available_memory_bytes
+from shrimpit.png_compression import measure
 from shrimpit.resources import (
     ASSETS,
     BACKGROUND,
@@ -58,6 +59,18 @@ def check_formats(folder):
             image.load()
             if image.format != output_format or image.size != result.input_size:
                 raise AssertionError(f"{output_format} output is invalid")
+
+
+def check_transparent_png(folder):
+    """Compress the transparent mascot to PNG: a faithful palette must be chosen, background kept clear."""
+    source = SHRIMPY_ICON
+    result = convert_image(source, folder / "shrimpy-min.png", "PNG")
+    if result.png_encoding != "palette" or result.output_bytes >= result.input_bytes:
+        raise AssertionError(f"PNG compression chose {result.png_encoding}, {result.output_bytes} bytes")
+    with Image.open(source) as original, Image.open(result.destination) as output:
+        original_rgba, output_rgba = original.convert("RGBA"), output.convert("RGBA")
+        if output.size != original.size or not measure(original_rgba, output_rgba).acceptable:
+            raise AssertionError("PNG compression changed the size or failed the fidelity check")
 
 
 def check_enlargement(folder):
@@ -127,6 +140,7 @@ def check_window(folder):
 CHECKS = (
     ("Ressources de l’application", check_assets),
     ("Compression JPEG, PNG et WebP", check_formats),
+    ("Compression PNG automatique d’une image transparente", check_transparent_png),
     ("Agrandissement Photographie, Illustration et Pixel Art", check_enlargement),
     ("Mémoire disponible pour les grands exports", check_memory),
     ("Police, animations et traduction Qt", check_qt_resources),

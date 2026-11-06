@@ -26,6 +26,7 @@ from shrimpit.gui.pages.common import page_heading
 from shrimpit.gui.theme import icon
 from shrimpit.gui.widgets import DropZone, PreviewCard, label, panel
 from shrimpit.gui.workers import ExportJob, PreviewJob
+from shrimpit.png_compression import ENCODING_LABELS
 from shrimpit.processing import export_plan, image_info, readable_size
 
 
@@ -344,6 +345,9 @@ class ProcessingPage(QWidget):
             else f"Plus volumineux de {prefix}{readable_size(-difference)}"
         )
         status = f"{change} · Aperçu calculé, aucun fichier enregistré."
+        if result.png_encoding in ENCODING_LABELS:
+            # The export runs the same choice on the same pixels.
+            status += f" Encodage retenu : {ENCODING_LABELS[result.png_encoding]}."
         if estimated:
             status += " Poids PNG estimé : l’export optimisé est généralement un peu plus léger."
         self.preview_status.setText(status)

@@ -187,6 +187,8 @@ class OutputSettings(QWidget):
             else "Dimensions conservées. Le poids peut augmenter."
         )
         text += " Fond blanc en JPEG." if self.format.currentText() == "JPEG" else " Transparence conservée."
+        if not self.enlarge and self.format.currentText() == "PNG":
+            text += " Palette de 256 couleurs si le rendu reste fidèle, sinon PNG fidèle."
         text += " Métadonnées retirées."
         if self.enlarge:
             text = MODE_NOTES[self.upscale_controls.mode.currentData()] + " " + text

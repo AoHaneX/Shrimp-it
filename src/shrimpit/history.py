@@ -207,6 +207,8 @@ class HistoryStore:
         parameters["keep_ratio"] = options.keep_ratio
         parameters["input_size"] = list(result.input_size)
         parameters["output_size"] = list(result.output_size)
+        if getattr(result, "png_encoding", None):
+            parameters["png_encoding"] = result.png_encoding
         entry = {
             "id": uuid4().hex,
             "created_at": timestamp(),

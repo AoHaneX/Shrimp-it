@@ -10,6 +10,7 @@ from PIL import Image, ImageMath, ImageOps, UnidentifiedImageError
 from shrimpit.errors import ConversionError, describe_error
 from shrimpit.filenames import validate_filename
 from shrimpit.limits import MAX_INPUT_PIXELS, check_export_memory, check_output_size
+from shrimpit.png_compression import choose_png
 from shrimpit.upscale import UpscaleSettings, resize_image
 
 EXTENSIONS = {"JPEG": {".jpg", ".jpeg"}, "PNG": {".png"}, "WEBP": {".webp"}}
@@ -73,6 +74,8 @@ class ConversionResult:
     output_bytes: int
     input_size: tuple[int, int]
     output_size: tuple[int, int]
+    # Set for PNG compression only: "lossless", "palette" or "palette_alpha" (see png_compression).
+    png_encoding: str | None = None
 
     @property
     def savings_percent(self) -> float:
@@ -85,7 +88,10 @@ def convert_image(
     output_format: str = "JPEG",
     quality: int = 80,
 ) -> ConversionResult:
-    """Compress or convert a static image without resizing it."""
+    """Compress or convert a static image without resizing it.
+
+    PNG output picks a palette automatically when it is lighter and faithful (see ``choose_png``).
+    """
     return _process_image(source, destination, output_format, quality, scale=1)
 
 
@@ -170,6 +176,10 @@ def _process_image(
             # Flatten after resizing so enlargements keep premultiplied-alpha edges.
             clean = flatten_on_white(clean)
 
+        png_choice = None
+        if output_format == "PNG" and upscale_settings is None:
+            # Compression only: enlargements, Pixel Art included, keep the faithful encoding below.
+            png_choice = choose_png(clean)
         options = {"optimize": not fast_png} if output_format == "PNG" else {"quality": quality}
         if output_format == "JPEG":
             options.update(optimize=True, progressive=True)
@@ -179,8 +189,18 @@ def _process_image(
         # Exclusive mode also protects files created after the initial check.
         with destination.open("xb") as stream:
             created = True
-            clean.save(stream, format=output_format, **options)
-        return ConversionResult(destination, input_bytes, destination.stat().st_size, input_size, clean.size)
+            if png_choice is not None:
+                stream.write(png_choice.data)
+            else:
+                clean.save(stream, format=output_format, **options)
+        return ConversionResult(
+            destination,
+            input_bytes,
+            destination.stat().st_size,
+            input_size,
+            clean.size,
+            png_choice.encoding if png_choice else None,
+        )
     except (
         ConversionError,
         OSError,

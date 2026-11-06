@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 from shrimpit.gui.history_thumbnails import ThumbnailLoader
 from shrimpit.gui.widgets import label
 from shrimpit.history import HistoryError
+from shrimpit.png_compression import ENCODING_LABELS
 from shrimpit.processing import readable_size
 
 
@@ -34,6 +35,8 @@ def parameter_text(entry):
     lines = [f"Format : {parameters.get('output_format', '—')}"]
     if parameters.get("output_format") != "PNG":
         lines.append(f"Qualité : {parameters.get('quality', '—')}")
+    elif parameters.get("png_encoding") in ENCODING_LABELS:
+        lines.append(f"Encodage : {ENCODING_LABELS[parameters['png_encoding']]}")
     if entry["operation"] == "upscale":
         settings = parameters.get("upscale", {})
         mode = settings.get("mode")

@@ -25,6 +25,7 @@ Shrimpit/
 └── src/shrimpit/
     ├── __main__.py           Point d’entrée
     ├── engine.py             Compression et agrandissement Pillow
+    ├── png_compression.py    Choix automatique entre PNG fidèle et PNG à palette
     ├── upscale.py            Modes, interpolation et netteté d’agrandissement
     ├── limits.py             Plafonds de sortie et contrôle de la RAM
     ├── processing.py         Aperçus, options et planification des sorties
@@ -77,6 +78,24 @@ Shrimpit/
 
 `gui/pages/processing.py` gère la liste d’images, les aperçus et l’export ; les réglages de sortie et le
 modèle de nom sont dans `gui/output_settings.py`.
+
+## Compression PNG
+
+`png_compression.choose_png` reçoit les pixels normalisés d’une compression PNG (jamais d’un agrandissement)
+et renvoie les octets à écrire avec l’encodage retenu (`lossless`, `palette` ou `palette_alpha`), exposé par
+`ConversionResult.png_encoding`, l’aperçu et l’historique.
+
+- Candidats, dans l’ordre : palette exacte si l’image a 256 valeurs RGBA ou moins (`exact_palette`, sans
+  perte), sinon octree de Pillow sur l’image dont les couleurs cachées sous l’alpha 0 sont vidées ; puis,
+  si l’image a des pixels semi-transparents, couleurs réduites avec l’alpha d’origine recopié. Le premier
+  candidat plus léger que le PNG fidèle et accepté par `Fidelity.acceptable` l’emporte.
+- `measure` rouvre le candidat encodé et le compare sur fond blanc et noir : PSNR global, pire bloc 4 × 4,
+  faux contours (bandes) et erreur des pixels semi-transparents ; un pixel transparent qui ne l’est plus
+  rejette le candidat. Les seuils sont des constantes du module, justifiées par les mesures du README.
+- Libimagequant (meilleure palette, tramage) n’est pas utilisé : il est absent des paquets Pillow pour Windows.
+  `MEDIANCUT` et `MAXCOVERAGE` n’acceptent pas l’alpha, et leurs k-moyennes coûtent plusieurs secondes.
+- Coût mesuré sur 25 MP : 6 à 7 s au lieu de 2 à 4 s. L’aperçu de compression appelle le même code, sans
+  raccourci, pour afficher le poids et l’encodage réels.
 
 ## Agrandissement
 
@@ -203,6 +222,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check.ps1
 ```
 
 `verify_compression.py` convertit les PNG des assets (ou les images passées avec `--inputs`) en PNG,
-JPEG et WebP à plusieurs qualités, contrôle dimensions, transparence et fidélité PNG, et écrit
+JPEG et WebP à plusieurs qualités, contrôle dimensions et transparence, exige des pixels identiques pour un
+PNG fidèle et le critère de `png_compression.measure` pour un PNG à palette, puis écrit
 `measurements.csv` et `summary.json` dans un nouveau dossier. Les tests graphiques s’exécutent hors écran :
 l’affichage réel, les notifications et le son restent à vérifier manuellement.

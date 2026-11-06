@@ -63,7 +63,8 @@ def test_png_pixels_unchanged(source, tmp_path):
     destination = tmp_path / "copy.png"
     convert_image(source, destination, "PNG")
     with Image.open(source) as original, Image.open(destination) as result:
-        assert original.tobytes() == result.tobytes()
+        # A single color is stored as an exact palette: compare decoded pixels, not the storage mode.
+        assert original.convert("RGB").tobytes() == result.convert("RGB").tobytes()
 
 
 def test_orientation_and_metadata(tmp_path):

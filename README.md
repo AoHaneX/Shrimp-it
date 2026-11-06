@@ -21,10 +21,48 @@ Trois formats de sortie sont disponibles :
 | Format | Fonctionnement et usage |
 | --- | --- |
 | **JPEG** | Pour les photographies : le réglage de qualité permet de trouver un compromis entre poids et détails. La transparence est remplacée par un fond blanc. |
-| **PNG** | Pour conserver la transparence et les pixels après la normalisation décrite plus bas. L’encodage est optimisé automatiquement, sans curseur de qualité. Le gain peut être faible si le fichier est déjà optimisé. |
+| **PNG** | Pour conserver la transparence. Sans curseur de qualité : Shrimp'It choisit seul entre une palette de 256 couleurs, nettement plus légère, et l’encodage fidèle, selon le critère décrit ci-dessous. |
 | **WebP** | Une autre possibilité pour réduire le poids, avec qualité réglable et conservation de la transparence. L’encodage utilisé ici est avec perte, comme pour le JPEG. |
 
 Pour JPEG et WebP, diminuer la qualité peut alléger le fichier, mais aussi rendre la perte de détails visible. L’aperçu permet de choisir le compromis adapté à chaque image ; un fichier plus léger n’est pas garanti.
+
+#### Compression PNG automatique
+
+En compression, le format PNG compare trois encodages, entièrement en local avec Pillow :
+
+1. **PNG fidèle** : les pixels normalisés, encodés sans perte et optimisés (le seul encodage des versions précédentes).
+2. **PNG à palette** : 256 couleurs au maximum, opacité comprise. Une image qui contient déjà 256 couleurs ou moins est convertie sans aucune perte ; les autres sont réduites par l’octree rapide de Pillow, après avoir vidé la couleur cachée sous les pixels totalement transparents.
+3. **PNG à couleurs réduites, opacité d’origine** : essayé quand la palette est refusée et que l’image a des pixels semi-transparents. Les couleurs sont réduites à 256, mais l’opacité de chaque pixel est recopiée telle quelle.
+
+Une variante n’est retenue que si son fichier est plus léger que le PNG fidèle et si, une fois rouverte, elle garde les dimensions, laisse chaque pixel totalement transparent à 0 d’opacité et respecte tous les seuils suivants, mesurés après composition sur fond blanc **et** sur fond noir (le pire des deux compte) :
+
+| Critère | Seuil | Rôle |
+| --- | --- | --- |
+| PSNR global | ≥ 34 dB | Écart moyen sur toute l’image |
+| Pire bloc de 4 × 4 px | écart moyen ≤ 24 niveaux sur 255 | Détecte un petit contour perdu, invisible dans une moyenne globale |
+| Faux contours | ≤ 1 % des pixels | Détecte les bandes : marche d’au moins 3 niveaux là où l’original varie d’au plus 1 |
+| Bords semi-transparents | écart moyen ≤ 8, 99ᵉ centile ≤ 32 | Contours anticrénelés propres |
+
+Sinon, le PNG fidèle est conservé. Le calcul est déterministe : l’aperçu et l’export font le même choix, affiché sous l’aperçu (« Encodage retenu ») et dans le détail de l’historique. L’agrandissement, y compris le mode Pixel Art, garde l’encodage fidèle.
+
+Ces seuils ont été choisis à partir des essais ci-dessous (Pillow 13.0.0, Python 3.13, 6 novembre 2026). Les palettes retenues sont indiscernables de l’original à 200 % sur fond blanc et noir ; les palettes refusées montraient des bandes dans le ciel ou les dégradés, des taches de couleur, ou un pixel de fond devenu visible.
+
+| Image | Taille | Fichier source | PNG fidèle | PNG automatique | Résultat |
+| --- | --- | --- | --- | --- | --- |
+| Mascotte transparente (`branding/shrimpy.png`) | 1185 × 1185 | 507 067 o | 409 907 o | **46 945 o** (−90,7 %) | Palette : 41,9 dB, pire bloc 20, faux contours 0,59 %, bords 3,8 / 18 |
+| Icône transparente (`icons/settings.png`) | 256 × 256 | 92 412 o | 92 412 o | **21 247 o** (−77,0 %) | Palette : 34,8 dB, pire bloc 14, faux contours 0,31 %, bords 7,8 / 19 |
+| Dégradé de couleurs synthétique | 512 × 512 | 5 936 o | 2 376 o | 2 376 o (−60,0 %) | Fidèle : la palette pèserait 10 054 o et crée 6,9 % de faux contours |
+| Paysage photoréaliste (fond d’écran Windows `img102.jpg`, réduit et enregistré en PNG) | 1600 × 1000 | 1 117 810 o | 1 043 339 o | 1 043 339 o (−6,7 %) | Fidèle : la palette (163 964 o) crée 5,0 % de faux contours dans le ciel |
+| Photographie de rue au téléphone (non versionnée) | 2064 × 1161 | 3 131 050 o | 2 954 969 o | 2 954 969 o (−5,6 %) | Fidèle : pire bloc 34 avec la palette |
+
+Contrôles complémentaires : les quatre autres icônes passent en palette (de −73 à −76 %), la barre latérale transparente aussi (127 793 → 24 799 o) ; l’illustration d’exemple (palette à 30,3 dB) et le décor pixel art `ocean.png` (pire bloc 43, des couleurs rares disparaissent) restent fidèles. Une image transparente entourée d’un large halo flou, couverte par les tests, illustre la troisième variante : la palette rendait visibles des pixels de fond, la variante à opacité d’origine est retenue.
+
+Limites observées :
+
+- Les photographies et les dégradés restent presque toujours en PNG fidèle : sans tramage, 256 couleurs y créent des bandes. Pour ces images, JPEG ou WebP restent plus adaptés.
+- Le quantificateur de Pillow est simple : sur certaines images, une palette plus soignée (par exemple avec libimagequant, absent des paquets Pillow pour Windows) serait acceptée là où Shrimp'It garde le PNG fidèle.
+- Le choix encode et compare plusieurs variantes : sur une image de 25 MP, la compression PNG prend environ 6 à 7 s au lieu de 2 à 4 s, aperçu compris.
+- Les seuils sont des mesures de pixels, pas une évaluation de la perception humaine ni de la gestion des couleurs.
 
 ### Agrandir sans IA
 
@@ -81,7 +119,7 @@ L’installation crée aussi `.venv\Scripts\shrimpit.exe`, qui lance l’applica
 - Entrées limitées aux **JPEG, PNG et WebP statiques de 25 mégapixels maximum**. Les GIF et animations ne sont pas pris en charge.
 - Sorties agrandies jusqu’à **400 MP**, sous réserve de mémoire disponible et des limites du format (16 383 pixels par côté en WebP, 65 500 en JPEG, y compris en compression). L’aperçu automatique ne calcule pas les sorties de plus de 25 MP ; en agrandissement PNG, il affiche un poids estimé, l’export final étant optimisé. La mémoire est vérifiée avant chaque grand export. Voir les [grands exports](docs/architecture.md#grands-exports).
 - Une optimisation peut produire un fichier plus volumineux. L’agrandissement interpole les pixels et ne recrée pas les détails absents.
-- JPEG et WebP sont encodés avec perte. PNG conserve les pixels après normalisation RGB/RGBA 8 bits ; les niveaux de gris 16 bits sont ramenés proportionnellement sur 8 bits. La transparence est conservée en PNG/WebP et remplacée par un fond blanc en JPEG.
+- JPEG et WebP sont encodés avec perte. En compression, PNG peut passer à une palette de 256 couleurs, donc légèrement modifier les pixels, uniquement si les critères de la [compression PNG automatique](#compression-png-automatique) sont respectés ; sinon, et toujours en agrandissement, PNG conserve les pixels après normalisation RGB/RGBA 8 bits. Les niveaux de gris 16 bits sont ramenés proportionnellement sur 8 bits. La transparence est conservée en PNG/WebP et remplacée par un fond blanc en JPEG.
 - L’orientation EXIF est appliquée ; les métadonnées, GPS et profils ICC sont ensuite retirés. Cette version n’est pas destinée à un flux colorimétrique exigeant ou à la conservation des images haute profondeur.
 
 Les originaux ne sont pas remplacés. Une erreur d’écriture gérée nettoie la sortie partielle, mais une interruption brutale du programme peut laisser un fichier incomplet.

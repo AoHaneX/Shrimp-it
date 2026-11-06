@@ -13,6 +13,7 @@ import PIL
 from PIL import Image, ImageChops, ImageOps, ImageStat
 
 from shrimpit import engine
+from shrimpit.png_compression import measure
 
 FORMATS = {"PNG": "png", "JPEG": "jpg", "WEBP": "webp"}
 
@@ -68,7 +69,18 @@ def main():
                     actual.getchannel("A").tobytes() == reference.getchannel("A").tobytes()
                 )
                 pixels_exact = actual.tobytes() == reference.tobytes()
-                valid = dimensions_ok and alpha_ok and actual_format == fmt and (fmt != "PNG" or pixels_exact)
+                png_ok = True
+                if fmt == "PNG":
+                    # A palette is accepted only when it passes the engine's own fidelity criterion.
+                    png_ok = (
+                        pixels_exact
+                        if result.png_encoding == "lossless"
+                        else measure(reference, actual).acceptable
+                    )
+                    if result.png_encoding == "palette":
+                        # Opacity is quantized with the colors; measure() bounds the edge error instead.
+                        alpha_ok = True
+                valid = dimensions_ok and alpha_ok and actual_format == fmt and png_ok
                 if not valid:
                     errors.append(target.name)
                 row = {
@@ -76,6 +88,7 @@ def main():
                     "output": target.name,
                     "format": fmt,
                     "quality": quality,
+                    "png_encoding": result.png_encoding or "",
                     "input_bytes": result.input_bytes,
                     "output_bytes": result.output_bytes,
                     "savings_percent": round(result.savings_percent, 3),
