@@ -216,6 +216,20 @@ def test_memory_error_while_encoding_faithful_png_is_reported(tmp_path, monkeypa
     assert not target.exists()
 
 
+@pytest.mark.parametrize(
+    "image", [sticker(), glowing_sticker(), color_gradient(alpha=True)], ids=["sticker", "glow", "gradient"]
+)
+def test_measure_by_bands_matches_a_whole_image_comparison(monkeypatch, image):
+    from shrimpit import png_compression
+
+    candidate = palette_candidate(image)
+    monkeypatch.setattr(png_compression, "BAND_ROWS", 100_000)
+    whole = measure(image, candidate)
+    # Bands of 4 rows: blocks, banding steps across band edges and edge histograms must add up exactly.
+    monkeypatch.setattr(png_compression, "BAND_ROWS", 4)
+    assert measure(image, candidate) == whole
+
+
 def test_choice_is_deterministic():
     image = sticker()
     assert choose_png(image) == choose_png(image)

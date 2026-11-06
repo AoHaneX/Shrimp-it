@@ -35,6 +35,8 @@ MAX_FALSE_CONTOURS = 0.01
 # Semi-transparent pixels (0 < alpha < 255): mean and 99th percentile of their error.
 MAX_EDGE_MEAN = 8.0
 MAX_EDGE_P99 = 32
+# Rows compared at once by measure(): a multiple of BLOCK_SIZE, so no block straddles two bands.
+BAND_ROWS = 256
 
 ENCODING_LABELS = {
     "lossless": "PNG fidèle",
@@ -160,32 +162,52 @@ def semi_transparent_mask(alpha: Image.Image) -> Image.Image:
 
 
 def measure(original: Image.Image, candidate: Image.Image) -> Fidelity:
-    """Compare both images composited on white and black; keep the worse value of each criterion."""
-    candidate = candidate.convert("RGBA")
+    """Compare both images composited on white and black; keep the worse value of each criterion.
+
+    The images are compared in bands of ``BAND_ROWS`` rows, so memory stays small on large images;
+    every criterion is accumulated exactly, with the same result as a whole-image comparison.
+    """
+    width, height = original.size
     has_alpha = original.mode == "RGBA"
-    original_rgba = original.convert("RGBA")
+    backgrounds = BACKGROUNDS if has_alpha else BACKGROUNDS[:1]
+    squared = dict.fromkeys(backgrounds, 0)
+    blocks = dict.fromkeys(backgrounds, 0)
+    contours = dict.fromkeys(backgrounds, 0)
+    edges = {color: [0] * 256 for color in backgrounds}
     transparent_kept = True
-    edges = None
-    if has_alpha:
-        hidden = original_rgba.getchannel("A").point(lambda value: 255 if value == 0 else 0)
-        transparent_kept = ImageChops.multiply(hidden, candidate.getchannel("A")).getbbox() is None
-        edges = semi_transparent_mask(original_rgba.getchannel("A"))
-        if edges.getbbox() is None:
-            edges = None
-    psnr, block, contours, edge_mean, edge_p99 = math.inf, 0, 0.0, 0.0, 0
-    for color in BACKGROUNDS if has_alpha else BACKGROUNDS[:1]:
-        reference = _composite(original_rgba, color)
-        result = _composite(candidate, color)
-        difference = ImageChops.difference(reference, result)
-        psnr = min(psnr, _psnr(difference))
-        worst = _max_channel(difference)
-        block = max(block, worst.reduce(BLOCK_SIZE).getextrema()[1])
-        contours = max(contours, _false_contours(reference, result))
-        if edges is not None:
-            histogram = worst.histogram(mask=edges)
-            edge_mean = max(edge_mean, _mean(histogram))
-            edge_p99 = max(edge_p99, _percentile(histogram, 0.99))
-    return Fidelity(psnr, block, contours, edge_mean, edge_p99, transparent_kept)
+    for top in range(0, height, BAND_ROWS):
+        rows = min(BAND_ROWS, height - top)
+        # One extra row gives the band's last row its lower neighbor for the banding check.
+        box = (0, top, width, min(top + rows + 1, height))
+        own = (0, 0, width, rows)
+        reference_band = original.crop(box).convert("RGBA")
+        result_band = candidate.crop(box).convert("RGBA")
+        edge_mask = None
+        if has_alpha:
+            alpha = reference_band.getchannel("A")
+            hidden = alpha.point(lambda value: 255 if value == 0 else 0)
+            if ImageChops.multiply(hidden, result_band.getchannel("A")).getbbox() is not None:
+                transparent_kept = False
+            edge_mask = semi_transparent_mask(alpha).crop(own)
+        for color in backgrounds:
+            reference = _composite(reference_band, color)
+            result = _composite(result_band, color)
+            difference = ImageChops.difference(reference.crop(own), result.crop(own))
+            squared[color] += _squared_error(difference)
+            worst = _max_channel(difference)
+            blocks[color] = max(blocks[color], worst.reduce(BLOCK_SIZE).getextrema()[1])
+            contours[color] += _false_contours(reference, result)
+            if edge_mask is not None:
+                edges[color] = [a + b for a, b in zip(edges[color], worst.histogram(mask=edge_mask))]
+    step_pixels = (width - 1) * (height - 1)
+    return Fidelity(
+        psnr_db=min(_psnr(squared[color], width * height * 3) for color in backgrounds),
+        worst_block=max(blocks.values()),
+        false_contours=max(contours.values()) / step_pixels if step_pixels else 0.0,
+        edge_mean=max(_mean(edges[color]) for color in backgrounds),
+        edge_p99=max(_percentile(edges[color], 0.99) for color in backgrounds),
+        transparent_kept=transparent_kept,
+    )
 
 
 def _composite(rgba: Image.Image, color: str) -> Image.Image:
@@ -197,10 +219,12 @@ def _max_channel(difference: Image.Image) -> Image.Image:
     return ImageChops.lighter(ImageChops.lighter(red, green), blue)
 
 
-def _psnr(difference: Image.Image) -> float:
-    histogram = difference.histogram()
-    squared = sum(count * (index % 256) ** 2 for index, count in enumerate(histogram))
-    mse = squared / (difference.width * difference.height * 3)
+def _squared_error(difference: Image.Image) -> int:
+    return sum(count * (index % 256) ** 2 for index, count in enumerate(difference.histogram()))
+
+
+def _psnr(squared: int, samples: int) -> float:
+    mse = squared / samples
     return math.inf if mse == 0 else 10 * math.log10(255**2 / mse)
 
 
@@ -213,13 +237,13 @@ def _steps(image: Image.Image) -> Image.Image:
     return ImageChops.lighter(_max_channel(right), _max_channel(below))
 
 
-def _false_contours(reference: Image.Image, result: Image.Image) -> float:
+def _false_contours(reference: Image.Image, result: Image.Image) -> int:
+    """Count pixels that jump visibly where the reference is smooth (last row and column excluded)."""
     if reference.width < 2 or reference.height < 2:
-        return 0.0
+        return 0
     smooth = _steps(reference).point(lambda value: 255 if value <= SMOOTH_STEP else 0)
     jumps = _steps(result).point(lambda value: 255 if value >= VISIBLE_STEP else 0)
-    created = ImageChops.multiply(smooth, jumps).histogram()[255]
-    return created / (smooth.width * smooth.height)
+    return ImageChops.multiply(smooth, jumps).histogram()[255]
 
 
 def _mean(histogram: list[int]) -> float:

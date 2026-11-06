@@ -97,8 +97,11 @@ et renvoie les octets à écrire avec l’encodage retenu (`lossless`, `palette`
   échouer l’image.
 - Libimagequant (meilleure palette, tramage) n’est pas utilisé : il est absent des paquets Pillow pour Windows.
   `MEDIANCUT` et `MAXCOVERAGE` n’acceptent pas l’alpha, et leurs k-moyennes coûtent plusieurs secondes.
-- Coût mesuré sur 25 MP : 6 à 7 s au lieu de 2 à 4 s. L’aperçu de compression appelle le même code, sans
-  raccourci, pour afficher le poids et l’encodage réels.
+- `measure` compare les images par bandes de `BAND_ROWS` lignes (256) et additionne exactement chaque critère :
+  le résultat est identique à une comparaison de l’image entière, sans copies pleine taille. Pic mesuré sur
+  une image transparente de 25 MP : 0,74 Gio (1,6 Gio en comparant l’image entière), contre 0,5 Gio pour le
+  seul PNG fidèle ; durée 7,1 s contre 2,2 s. L’aperçu de compression appelle le même code, sans raccourci,
+  pour afficher le poids et l’encodage réels.
 
 ## Agrandissement
 

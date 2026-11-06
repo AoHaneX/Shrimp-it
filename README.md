@@ -61,7 +61,7 @@ Limites observées :
 
 - Les photographies et les dégradés restent presque toujours en PNG fidèle : sans tramage, 256 couleurs y créent des bandes. Pour ces images, JPEG ou WebP restent plus adaptés.
 - Le quantificateur de Pillow est simple : sur certaines images, une palette plus soignée (par exemple avec libimagequant, absent des paquets Pillow pour Windows) serait acceptée là où Shrimp'It garde le PNG fidèle.
-- Le choix encode et compare plusieurs variantes : sur une image de 25 MP, la compression PNG prend environ 6 à 7 s au lieu de 2 à 4 s, aperçu compris.
+- Le choix encode et compare plusieurs variantes. Mesuré sur une image transparente de 25 MP : 7,1 s et 0,74 Gio de mémoire au maximum, contre 2,2 s et 0,5 Gio pour le seul PNG fidèle ; sur une illustration opaque de 24 MP, 14,4 s et 0,59 Gio contre 12,9 s et 0,46 Gio. L’aperçu de compression fait le même calcul.
 - Les seuils sont des mesures de pixels, pas une évaluation de la perception humaine ni de la gestion des couleurs.
 
 ### Agrandir sans IA
