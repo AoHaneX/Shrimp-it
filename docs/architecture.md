@@ -92,6 +92,9 @@ et renvoie les octets à écrire avec l’encodage retenu (`lossless`, `palette`
 - `measure` rouvre le candidat encodé et le compare sur fond blanc et noir : PSNR global, pire bloc 4 × 4,
   faux contours (bandes) et erreur des pixels semi-transparents ; un pixel transparent qui ne l’est plus
   rejette le candidat. Les seuils sont des constantes du module, justifiées par les mesures du README.
+- Les variantes sont facultatives : une `MemoryError` pendant leur construction ou leur mesure conserve le PNG
+  fidèle déjà encodé (avertissement dans les journaux). Seul un manque de mémoire pendant l’encodage fidèle fait
+  échouer l’image.
 - Libimagequant (meilleure palette, tramage) n’est pas utilisé : il est absent des paquets Pillow pour Windows.
   `MEDIANCUT` et `MAXCOVERAGE` n’acceptent pas l’alpha, et leurs k-moyennes coûtent plusieurs secondes.
 - Coût mesuré sur 25 MP : 6 à 7 s au lieu de 2 à 4 s. L’aperçu de compression appelle le même code, sans

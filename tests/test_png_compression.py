@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
-from shrimpit.engine import convert_image, upscale_image
+from shrimpit.engine import ConversionError, convert_image, upscale_image
 from shrimpit.gui.workers import ExportJob, PreviewJob
 from shrimpit.png_compression import (
     MAX_BLOCK_ERROR,
@@ -186,6 +186,34 @@ def test_already_optimized_faithful_png_stays_faithful(tmp_path):
     assert result.output_bytes == result.input_bytes
     with Image.open(result.destination) as output:
         assert output.tobytes() == image.tobytes()
+
+
+def raise_memory_error(*args, **kwargs):
+    raise MemoryError
+
+
+@pytest.mark.parametrize("step", ["palette_candidate", "exact_alpha_candidate", "measure"])
+def test_memory_error_while_evaluating_variants_keeps_faithful_png(tmp_path, monkeypatch, caplog, step):
+    image = glowing_sticker() if step == "exact_alpha_candidate" else sticker()
+    if step == "exact_alpha_candidate":
+        # Reach the second variant: the plain palette is rejected for this image.
+        assert choose_png(image).encoding == "palette_alpha"
+    monkeypatch.setattr(f"shrimpit.png_compression.{step}", raise_memory_error)
+    result, output = export(tmp_path, image)
+    assert result.png_encoding == "lossless"
+    assert result.output_bytes == lossless_size(image)
+    assert output.tobytes() == image.tobytes()
+    assert "faithful PNG kept" in caplog.text
+
+
+def test_memory_error_while_encoding_faithful_png_is_reported(tmp_path, monkeypatch):
+    source = tmp_path / "sticker.png"
+    sticker().save(source)
+    target = tmp_path / "sticker-min.png"
+    monkeypatch.setattr("shrimpit.png_compression.save_png", raise_memory_error)
+    with pytest.raises(ConversionError, match="Mémoire insuffisante"):
+        convert_image(source, target, "PNG")
+    assert not target.exists()
 
 
 def test_choice_is_deterministic():

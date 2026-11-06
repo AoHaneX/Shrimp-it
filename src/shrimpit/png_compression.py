@@ -13,6 +13,7 @@ The thresholds were calibrated on a transparent mascot, icons, gradients and pho
 they accept palettes whose differences are invisible at 200 % zoom and reject banding and lost details.
 """
 
+import logging
 import math
 import sys
 from dataclasses import dataclass
@@ -79,19 +80,30 @@ def save_png(image: Image.Image) -> bytes:
 
 
 def choose_png(image: Image.Image) -> PngChoice:
-    """Return the lightest acceptable encoding of a normalized RGB or RGBA image."""
+    """Return the lightest acceptable encoding of a normalized RGB or RGBA image.
+
+    Only the faithful encoding may fail for lack of memory: the variants are optional, so a
+    ``MemoryError`` while building or measuring them keeps the faithful PNG already encoded.
+    """
     lossless = save_png(image)
-    for encoding, build in (("palette", palette_candidate), ("palette_alpha", exact_alpha_candidate)):
-        candidate = build(image)
-        if candidate is None:
-            continue
-        data = save_png(candidate)
-        if len(data) >= len(lossless):
-            continue
-        with Image.open(BytesIO(data)) as decoded:
-            decoded.load()
-            if decoded.size == image.size and measure(image, decoded).acceptable:
-                return PngChoice(data, encoding, len(lossless))
+    try:
+        for encoding, build in (("palette", palette_candidate), ("palette_alpha", exact_alpha_candidate)):
+            candidate = build(image)
+            if candidate is None:
+                continue
+            data = save_png(candidate)
+            # Free the candidate's pixels before decoding and measuring its encoded copy.
+            del candidate
+            if len(data) >= len(lossless):
+                continue
+            with Image.open(BytesIO(data)) as decoded:
+                decoded.load()
+                if decoded.size == image.size and measure(image, decoded).acceptable:
+                    return PngChoice(data, encoding, len(lossless))
+    except MemoryError:
+        logging.getLogger(__name__).warning(
+            "Not enough memory to evaluate PNG palettes for %s × %s pixels: faithful PNG kept", *image.size
+        )
     return PngChoice(lossless, "lossless", len(lossless))
 
 
