@@ -96,7 +96,7 @@ Le suffixe par défaut suit le facteur choisi (`-x2`, `-x3`, `-x4`) ou les dimen
 
 ## Installation et lancement
 
-Sans Python : utilisez la version portable (`ShrimpIt-vX.Y.Z-Windows-Portable.zip`, à extraire puis lancer `ShrimpIt.exe`) ou l’installateur (`ShrimpIt-vX.Y.Z-Windows-Setup.exe`). Voir [Distribution Windows](docs/distribution-windows.md).
+Sans Python : utilisez la version portable (`ShrimpIt-vX.Y.Z-win64.zip`, à extraire puis lancer `ShrimpIt.exe`) ou l’installateur (`ShrimpIt-vX.Y.Z-setup.exe`), avec leurs empreintes dans `SHA256SUMS.txt`. Voir [Distribution Windows](docs/distribution-windows.md).
 
 Depuis les sources, prérequis : **Windows 11**, **Python 3.11 ou supérieur** avec `pip`, et un accès Internet pour installer les dépendances. Les traitements fonctionnent ensuite localement.
 

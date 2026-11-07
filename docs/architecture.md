@@ -8,6 +8,7 @@ dans le [README](../README.md).
 ```text
 Shrimpit/
 ├── README.md                 Installation et utilisation
+├── CHANGELOG.md              Historique des versions, repris dans les notes de release
 ├── pyproject.toml            Version, dépendances et outils
 ├── requirements-tested.txt   Versions directes de référence
 ├── LICENSE                   Licence du code
@@ -18,8 +19,8 @@ Shrimpit/
 │   ├── verify_compression.py Mesure des sorties de compression
 │   ├── build_windows.ps1     Livrables Windows dans release\ : PyInstaller, ZIP, autotest, installateur
 │   └── build_preview_examples.py Régénération des exemples avant/après
-├── packaging/                Recette PyInstaller, lanceur et script Inno Setup
-├── .github/workflows/        Contrôles à chaque push et audit de sécurité hebdomadaire
+├── packaging/                Recette PyInstaller, lanceur, Inno Setup et convention de release ReefKit
+├── .github/workflows/        Contrôles à chaque push, audit hebdomadaire, release Windows sur tag vX.Y.Z
 ├── .github/dependabot.yml    Mises à jour hebdomadaires des actions (épinglées par SHA) et de pip
 ├── tests/                    Tests du moteur et de l’interface
 └── src/shrimpit/
@@ -193,7 +194,8 @@ Les droits des ressources sont décrits dans la section « Licence et ressources
 `scripts/build_windows.ps1` enchaîne les étapes suivantes (mode d’emploi : [Distribution Windows](distribution-windows.md)) :
 
 1. La version est lue dans `src/shrimpit/__init__.py` ; elle nomme les livrables
-   `ShrimpIt-vX.Y.Z-Windows-Portable.zip` et `ShrimpIt-vX.Y.Z-Windows-Setup.exe`, déposés dans `release\`.
+   `ShrimpIt-vX.Y.Z-win64.zip` et `ShrimpIt-vX.Y.Z-setup.exe`, déposés dans `release\` avec
+   `SHA256SUMS.txt` et `release-notes.md` (convention de release ReefKit, `packaging/reefkit_release.py`).
    L’interpréteur (3.11+, 64 bits) est vérifié et l’extra `build` installé dans `.venv` s’il manque.
 2. PyInstaller construit un dossier `dist\ShrimpIt\` (mode « un dossier », sans console) à partir de
    `packaging/shrimpit.spec`. L’icône `.ico` est générée depuis `branding/shrimpy.png` et les informations

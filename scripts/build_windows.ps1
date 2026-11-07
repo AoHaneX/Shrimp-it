@@ -1,7 +1,11 @@
-# Build the Windows deliverables into release\: a portable ZIP and an Inno Setup installer, both tested.
+# Build the Windows deliverables into release\: a portable ZIP and an Inno Setup installer, both tested,
+# named after the ReefKit release convention read by RiftKit Launcher (packaging\reefkit_release.py):
+# ShrimpIt-vX.Y.Z-win64.zip, ShrimpIt-vX.Y.Z-setup.exe, SHA256SUMS.txt and release-notes.md.
 # The version comes from src\shrimpit\__init__.py and names every deliverable.
 param(
     [string]$Python = "",
+    # Git tag being released (vX.Y.Z): the build stops if it differs from the version of the code.
+    [string]$Tag = "",
     [switch]$SkipInstaller
 )
 
@@ -117,9 +121,12 @@ function New-PortableArchive([string]$Destination) {
 Push-Location $projectRoot
 try {
     $version = Get-AppVersion
-    $baseName = "ShrimpIt-v$version-Windows"
+    $baseName = "ShrimpIt-v$version"
     Write-Host "Shrimp'It $version"
     Initialize-BuildEnvironment
+    $tagArguments = if ($Tag) { @('--tag', $Tag) } else { @() }
+    & $Python packaging\reefkit_release.py version @tagArguments
+    if ($LASTEXITCODE -ne 0) { throw 'The version of the code does not match the tag.' }
     # Fail early, before the long PyInstaller step, when the installer cannot be built.
     if (-not $SkipInstaller) { $iscc = Find-InnoSetup }
 
@@ -127,24 +134,33 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'PyInstaller build failed.' }
 
     New-Item -ItemType Directory -Force $release | Out-Null
-    $zip = Join-Path $release "$baseName-Portable.zip"
+    # SHA256SUMS.txt must never describe a stale installer: start from no deliverable of this version.
+    # Files named after the former convention (*-Windows-Portable.zip, *-Windows-Setup.exe) are left alone.
+    foreach ($name in @("$baseName-win64.zip", "$baseName-setup.exe", 'SHA256SUMS.txt', 'release-notes.md')) {
+        Remove-Item (Join-Path $release $name) -ErrorAction SilentlyContinue
+    }
+    $zip = Join-Path $release "$baseName-win64.zip"
     New-PortableArchive $zip
-    $deliverables = @($zip)
 
     if (-not $SkipInstaller) {
-        $setup = Join-Path $release "$baseName-Setup.exe"
-        Remove-Item $setup -ErrorAction SilentlyContinue
+        $setup = Join-Path $release "$baseName-setup.exe"
         $icon = Join-Path $work 'shrimpit\shrimpit.ico'
-        & $iscc /Q "/DAppVersion=$version" "/DOutputBaseName=$baseName-Setup" "/DSourceDir=$bundle" `
+        & $iscc /Q "/DAppVersion=$version" "/DOutputBaseName=$baseName-setup" "/DSourceDir=$bundle" `
             "/DOutputDir=$release" "/DIconFile=$icon" packaging\shrimpit.iss
         if ($LASTEXITCODE -ne 0 -or -not (Test-Path $setup)) { throw 'Inno Setup compilation failed.' }
-        $deliverables += $setup
     }
 
-    foreach ($file in $deliverables) {
-        $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant()
-        $size = [math]::Round((Get-Item $file).Length / 1MB, 1)
-        Write-Host "$([IO.Path]::GetFileName($file))  $size Mo  SHA-256 $hash"
+    # Check the archive layout, then write SHA256SUMS.txt and release-notes.md (CHANGELOG.md section).
+    $finalizeArguments = @('--dir', $release) + $tagArguments
+    if ($SkipInstaller) { $finalizeArguments += '--allow-missing-installer' }
+    & $Python packaging\reefkit_release.py finalize @finalizeArguments
+    if ($LASTEXITCODE -ne 0) { throw 'The deliverables do not follow the release convention.' }
+    # Start the interface from the extracted archive, as RiftKit Launcher will, in a sandboxed profile.
+    & $Python packaging\reefkit_release.py smoke --dir $release
+    if ($LASTEXITCODE -ne 0) { throw 'ShrimpIt.exe did not start from the portable archive.' }
+
+    Get-ChildItem $release -Filter "$baseName-*" | Where-Object { $_.Name -cmatch '-(win64\.zip|setup\.exe)$' } | ForEach-Object {
+        Write-Host ('{0}  {1:N1} Mo' -f $_.Name, ($_.Length / 1MB))
     }
     Write-Host "Deliverables written to $release"
 } finally {
