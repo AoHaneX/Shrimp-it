@@ -1,0 +1,29 @@
+{
+  "convention": 1,
+  "id": "shrimpit",
+  "appName": "ShrimpIt",
+  "displayName": "Shrimp'It",
+  "repository": "AoHaneX/Shrimp-it",
+  "executable": "ShrimpIt.exe",
+  "installer": true,
+  "versionSources": [
+    {
+      "file": "src/shrimpit/__init__.py",
+      "pattern": "^__version__ = \"([^\"]+)\""
+    }
+  ],
+  "changelog": "CHANGELOG.md",
+  "userData": [
+    {
+      "path": "%LOCALAPPDATA%\\BlueShrimp\\Shrimpit",
+      "content": "Historique et journaux"
+    },
+    {
+      "path": "HKEY_CURRENT_USER\\Software\\BlueShrimp\\Shrimpit",
+      "content": "Préférences"
+    }
+  ],
+  "notes": [
+    "Vos images ne sont jamais modifiées ni supprimées, y compris à la désinstallation."
+  ]
+}
