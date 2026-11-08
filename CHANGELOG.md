@@ -24,7 +24,7 @@ Chaque section `## X.Y.Z` devient la partie « Nouveautés » des notes de la re
 
 ### Distribution
 
-- Livrables nommés selon la convention ReefKit lue par RiftKit Launcher : `ShrimpIt-v1.1.0-win64.zip`,
+- Livrables nommés selon la convention ReefKit lue par ReefKit Launcher : `ShrimpIt-v1.1.0-win64.zip`,
   `ShrimpIt-v1.1.0-setup.exe` et `SHA256SUMS.txt`. Les releases précédentes gardent leurs noms d'origine.
 
 ## 1.0.0

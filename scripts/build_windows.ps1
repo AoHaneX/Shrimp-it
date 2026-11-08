@@ -1,5 +1,5 @@
 # Build the Windows deliverables into release\: a portable ZIP and an Inno Setup installer, both tested,
-# named after the ReefKit release convention read by RiftKit Launcher (packaging\reefkit_release.py):
+# named after the ReefKit release convention read by ReefKit Launcher (packaging\reefkit_release.py):
 # ShrimpIt-vX.Y.Z-win64.zip, ShrimpIt-vX.Y.Z-setup.exe, SHA256SUMS.txt and release-notes.md.
 # The version comes from src\shrimpit\__init__.py and names every deliverable.
 param(
@@ -155,7 +155,7 @@ try {
     if ($SkipInstaller) { $finalizeArguments += '--allow-missing-installer' }
     & $Python packaging\reefkit_release.py finalize @finalizeArguments
     if ($LASTEXITCODE -ne 0) { throw 'The deliverables do not follow the release convention.' }
-    # Start the interface from the extracted archive, as RiftKit Launcher will, in a sandboxed profile.
+    # Start the interface from the extracted archive, as ReefKit Launcher will, in a sandboxed profile.
     & $Python packaging\reefkit_release.py smoke --dir $release
     if ($LASTEXITCODE -ne 0) { throw 'ShrimpIt.exe did not start from the portable archive.' }
 
