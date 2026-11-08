@@ -3,6 +3,13 @@
 Chaque section `## X.Y.Z` devient la partie « Nouveautés » des notes de la release GitHub `vX.Y.Z`
 (`packaging/reefkit_release.py`).
 
+## 1.1.1
+
+### Distribution
+
+- Version de maintenance, sans changement dans l'application : la documentation désigne le lanceur de la
+  suite sous son nouveau nom, ReefKit Launcher.
+
 ## 1.1.0
 
 ### Ajouts
