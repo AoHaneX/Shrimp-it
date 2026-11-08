@@ -11,7 +11,7 @@ Cible : Windows 10 ou 11, 64 bits.
 | `SHA256SUMS.txt` | Empreintes SHA-256 des deux fichiers. |
 
 `X.Y.Z` est la version déclarée dans [`src/shrimpit/__init__.py`](../src/shrimpit/__init__.py). Ces noms suivent la
-convention de release ReefKit, lue par RiftKit Launcher (voir [Convention de release](#convention-de-release)). Les
+convention de release ReefKit, lue par ReefKit Launcher (voir [Convention de release](#convention-de-release)). Les
 releases v1.0.0 et le brouillon v1.1.0 publiés avant cette convention gardent leurs noms d'origine
 (`ShrimpIt-vX.Y.Z-Windows-Portable.zip`, `ShrimpIt-vX.Y.Z-Windows-Setup.exe`).
 
@@ -137,7 +137,7 @@ désinstallation.
 
 ## Convention de release
 
-Les applications ReefKit publient leurs versions Windows de la même façon, pour que RiftKit Launcher les
+Les applications ReefKit publient leurs versions Windows de la même façon, pour que ReefKit Launcher les
 télécharge et les mette à jour sans réglage propre à chaque version :
 
 | Élément | Règle |

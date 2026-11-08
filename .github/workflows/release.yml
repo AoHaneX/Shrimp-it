@@ -1,6 +1,6 @@
 name: Windows release
 
-# ReefKit release convention, read by RiftKit Launcher (packaging/reefkit_release.py):
+# ReefKit release convention, read by ReefKit Launcher (packaging/reefkit_release.py):
 #   ShrimpIt-vX.Y.Z-win64.zip, ShrimpIt-vX.Y.Z-setup.exe, SHA256SUMS.txt, Markdown notes.
 # - Pull request touching the packaging, or manual run: test, build and launch; nothing is published.
 # - Tag vX.Y.Z: the same, then a DRAFT release. Publishing it stays a manual decision.
