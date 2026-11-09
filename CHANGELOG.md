@@ -3,6 +3,16 @@
 Chaque section `## X.Y.Z` devient la partie « Nouveautés » des notes de la release GitHub `vX.Y.Z`
 (`packaging/reefkit_release.py`).
 
+## 1.2.0
+
+### Ajouts
+
+- **PNG déjà optimisés jamais alourdis** : en compression PNG, l'encodage d'origine d'un PNG est réutilisé,
+  sans ses métadonnées, quand il est plus léger et redonne exactement les mêmes pixels. Sur 400 PNG
+  d'applications Windows, 35 ressortaient plus lourds qu'à l'entrée (jusqu'à +54 %) ; plus aucun désormais.
+- Mesures avant/après et limites mises à jour dans le README (mascotte −90,7 %, icône −77,0 %, dégradé et
+  photo gardés en PNG fidèle).
+
 ## 1.1.1
 
 ### Distribution
