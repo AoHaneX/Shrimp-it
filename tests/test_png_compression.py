@@ -1,22 +1,28 @@
 """Automatic PNG compression: reopen real exports and check what the user actually gets."""
 
 import random
+import struct
+import zlib
+from io import BytesIO
 from pathlib import Path
 
 import pytest
-from PIL import Image, ImageChops, ImageDraw, ImageFilter
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, PngImagePlugin
 
-from shrimpit.engine import ConversionError, convert_image, upscale_image
+from shrimpit.engine import EXIF_ORIENTATION, ConversionError, convert_image, upscale_image
 from shrimpit.gui.workers import ExportJob, PreviewJob
 from shrimpit.png_compression import (
     MAX_BLOCK_ERROR,
     MAX_EDGE_MEAN,
     MAX_EDGE_P99,
     MIN_PSNR_DB,
+    PNG_SIGNATURE,
     choose_png,
     measure,
+    original_encoding,
     palette_candidate,
     save_png,
+    strip_png,
 )
 from shrimpit.processing import Options
 from shrimpit.upscale import UpscaleSettings
@@ -188,6 +194,137 @@ def test_already_optimized_faithful_png_stays_faithful(tmp_path):
         assert output.tobytes() == image.tobytes()
 
 
+def png_chunk(kind, data):
+    return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+
+
+def png_chunks(data):
+    """List the chunk types of a PNG file."""
+    kinds, position = [], len(PNG_SIGNATURE)
+    while position < len(data):
+        length, kind = struct.unpack_from(">I4s", data, position)
+        kinds.append(kind)
+        position += 12 + length
+    return kinds
+
+
+def packed_gray_png(width=64, height=64, depth=4, extra=()):
+    """A 4-bit grayscale noise PNG, as written by an external optimizer: Pillow re-encodes it heavier."""
+    generator = random.Random(5)
+    per_byte = 8 // depth
+    rows = []
+    for _ in range(height):
+        values = [generator.randrange(1 << depth) for _ in range(width)]
+        packed = bytearray()
+        for start in range(0, width, per_byte):
+            byte = 0
+            for value in values[start : start + per_byte]:
+                byte = (byte << depth) | value
+            packed.append(byte)
+        rows.append(b"\x00" + bytes(packed))
+    header = struct.pack(">IIBBBBB", width, height, depth, 0, 0, 0, 0)
+    return b"".join(
+        [
+            PNG_SIGNATURE,
+            png_chunk(b"IHDR", header),
+            png_chunk(b"tEXt", b"Author\x00Jane Doe"),
+            *extra,
+            png_chunk(b"IDAT", zlib.compress(b"".join(rows), 9)),
+            png_chunk(b"IEND", b""),
+        ]
+    )
+
+
+def test_already_optimized_external_png_is_never_heavier(tmp_path):
+    data = packed_gray_png()
+    source = tmp_path / "optimized.png"
+    source.write_bytes(data)
+    with Image.open(source) as opened:
+        pixels = opened.convert("RGB")
+    # Without the original encoding, the best re-encoding would be heavier than the input file.
+    assert len(choose_png(pixels).data) > len(data)
+
+    result = convert_image(source, tmp_path / "optimized-min.png", "PNG")
+    assert result.png_encoding == "original"
+    assert result.output_bytes < result.input_bytes
+    written = result.destination.read_bytes()
+    assert png_chunks(written) == [b"IHDR", b"IDAT", b"IEND"]
+    assert b"Jane Doe" not in written
+    with Image.open(result.destination) as output:
+        assert output.size == pixels.size
+        assert output.convert("RGB").tobytes() == pixels.tobytes()
+
+
+def test_original_encoding_drops_metadata_but_keeps_transparency(tmp_path):
+    image = sticker()
+    stream = BytesIO()
+    info = PngImagePlugin.PngInfo()
+    info.add_text("Comment", "private note")
+    exif = Image.Exif()
+    exif[0x010E] = "description"
+    image.save(stream, format="PNG", pnginfo=info, exif=exif, icc_profile=b"\0" * 64)
+    stripped = strip_png(stream.getvalue())
+    assert png_chunks(stripped) == [b"IHDR", b"IDAT", b"IEND"]
+    with Image.open(BytesIO(stripped)) as decoded:
+        assert decoded.convert("RGBA").tobytes() == image.tobytes()
+    assert original_encoding(image, stream.getvalue()) == stripped
+
+
+def test_palette_still_wins_when_lighter_than_the_original_encoding(tmp_path):
+    image = sticker()
+    source = tmp_path / "heavy.png"
+    image.save(source, compress_level=0)
+    result = convert_image(source, tmp_path / "heavy-min.png", "PNG")
+    assert result.png_encoding == "palette"
+    assert result.output_bytes < 0.5 * lossless_size(image)
+
+
+def test_original_encoding_needs_identical_pixels(tmp_path):
+    image = Image.new("RGB", (40, 20), (10, 120, 200))
+    # A rotation recorded in EXIF changes the pixels the user gets: the original encoding is refused.
+    exif = Image.Exif()
+    exif[EXIF_ORIENTATION] = 6
+    stream = BytesIO()
+    image.save(stream, format="PNG", exif=exif)
+    rotated = image.transpose(Image.Transpose.ROTATE_270)
+    assert original_encoding(rotated, stream.getvalue()) is None
+    # Same size but other pixels, or an alpha channel the normalized image does not have.
+    assert original_encoding(Image.new("RGB", (40, 20), "white"), stream.getvalue()) is None
+    alpha = BytesIO()
+    image.convert("RGBA").save(alpha, format="PNG")
+    assert original_encoding(image, alpha.getvalue()) is None
+
+
+@pytest.mark.parametrize(
+    "damage",
+    ["not_png", "truncated", "bad_crc", "sixteen_bits", "unknown_critical"],
+)
+def test_unusable_original_encoding_is_ignored(damage):
+    data = packed_gray_png()
+    if damage == "not_png":
+        data = b"GIF89a" + data[6:]
+    elif damage == "truncated":
+        data = data[:-20]
+    elif damage == "bad_crc":
+        data = data[:-5] + bytes([data[-5] ^ 1]) + data[-4:]
+    elif damage == "sixteen_bits":
+        stream = BytesIO()
+        Image.new("I;16", (8, 8), 4000).save(stream, format="PNG")
+        data = stream.getvalue()
+    else:
+        data = packed_gray_png(extra=[png_chunk(b"ZZZZ", b"")])
+    assert strip_png(data) is None
+
+
+def test_compressing_a_16_bit_png_keeps_the_faithful_8_bit_encoding(tmp_path):
+    source = tmp_path / "deep.png"
+    Image.new("I;16", (32, 32), 40000).save(source)
+    result = convert_image(source, tmp_path / "deep-min.png", "PNG")
+    assert result.png_encoding in ("lossless", "palette")
+    with Image.open(result.destination) as output:
+        assert output.convert("RGB").getpixel((0, 0)) == (156, 156, 156)
+
+
 def raise_memory_error(*args, **kwargs):
     raise MemoryError
 
@@ -200,8 +337,9 @@ def test_memory_error_while_evaluating_variants_keeps_faithful_png(tmp_path, mon
         assert choose_png(image).encoding == "palette_alpha"
     monkeypatch.setattr(f"shrimpit.png_compression.{step}", raise_memory_error)
     result, output = export(tmp_path, image)
-    assert result.png_encoding == "lossless"
-    assert result.output_bytes == lossless_size(image)
+    # Both faithful encodings are acceptable: Pillow's default save can be lighter than optimize=True.
+    assert result.png_encoding in ("lossless", "original")
+    assert result.output_bytes <= lossless_size(image)
     assert output.tobytes() == image.tobytes()
     assert "faithful PNG kept" in caplog.text
 
@@ -259,9 +397,13 @@ def test_pixel_art_enlargement_keeps_every_color(tmp_path):
         assert output.tobytes() == image.resize((64, 64), Image.Resampling.NEAREST).tobytes()
 
 
-def test_preview_and_export_make_the_same_choice(tmp_path):
-    source = tmp_path / "sticker.png"
-    sticker().save(source)
+@pytest.mark.parametrize("kind", ["palette", "original"])
+def test_preview_and_export_make_the_same_choice(tmp_path, kind):
+    source = tmp_path / "source.png"
+    if kind == "palette":
+        sticker().save(source)
+    else:
+        source.write_bytes(packed_gray_png())
     options = Options(output_format="PNG")
     payloads = []
     preview = PreviewJob(source, options, 1)
@@ -274,9 +416,9 @@ def test_preview_and_export_make_the_same_choice(tmp_path):
     job = ExportJob([(source, destination)], options)
     job.run()
     assert job.errors == []
-    assert preview_result.png_encoding == "palette"
+    assert preview_result.png_encoding == kind
     assert preview_result.output_bytes == destination.stat().st_size
-    assert lossless_size(sticker()) > destination.stat().st_size
+    assert destination.stat().st_size < source.stat().st_size
 
 
 def test_history_records_png_encoding(tmp_path):

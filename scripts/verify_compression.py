@@ -74,7 +74,7 @@ def main():
                     # A palette is accepted only when it passes the engine's own fidelity criterion.
                     png_ok = (
                         pixels_exact
-                        if result.png_encoding == "lossless"
+                        if result.png_encoding in ("lossless", "original")
                         else measure(reference, actual).acceptable
                     )
                     if result.png_encoding == "palette":

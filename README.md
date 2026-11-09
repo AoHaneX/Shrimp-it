@@ -28,13 +28,13 @@ Pour JPEG et WebP, diminuer la qualité peut alléger le fichier, mais aussi ren
 
 #### Compression PNG automatique
 
-En compression, le format PNG compare trois encodages, entièrement en local avec Pillow :
+En compression, le format PNG compare jusqu’à quatre encodages, entièrement en local avec Pillow :
 
-1. **PNG fidèle** : les pixels normalisés, encodés sans perte et optimisés (le seul encodage des versions précédentes).
+1. **PNG fidèle** : les pixels normalisés, encodés sans perte et optimisés (le seul encodage des versions précédant la 1.1.0). Si la source est déjà un PNG, son propre encodage est aussi essayé, réduit aux blocs qui portent les pixels (`IHDR`, `PLTE`, `tRNS`, `IDAT`, `IEND`) : textes, EXIF, profils ICC, gamma et date sont retirés comme avant. Il n’est gardé que s’il est plus léger et qu’une fois relu, il redonne exactement les mêmes pixels (pas de PNG 16 bits, pas de rotation EXIF, pas de bloc endommagé). Un PNG déjà optimisé par un autre outil n’est ainsi plus réencodé en un fichier plus lourd (« PNG fidèle, encodage d’origine sans métadonnées »).
 2. **PNG à palette** : 256 couleurs au maximum, opacité comprise. Une image qui contient déjà 256 couleurs ou moins est convertie sans aucune perte ; les autres sont réduites par l’octree rapide de Pillow, après avoir vidé la couleur cachée sous les pixels totalement transparents.
 3. **PNG à couleurs réduites, opacité d’origine** : essayé quand la palette est refusée et que l’image a des pixels semi-transparents. Les couleurs sont réduites à 256, mais l’opacité de chaque pixel est recopiée telle quelle.
 
-Une variante n’est retenue que si son fichier est plus léger que le PNG fidèle et si, une fois rouverte, elle garde les dimensions, laisse chaque pixel totalement transparent à 0 d’opacité et respecte tous les seuils suivants, mesurés après composition sur fond blanc **et** sur fond noir (le pire des deux compte) :
+Une variante à palette n’est retenue que si son fichier est plus léger que le meilleur PNG fidèle et si, une fois rouverte, elle garde les dimensions, laisse chaque pixel totalement transparent à 0 d’opacité et respecte tous les seuils suivants, mesurés après composition sur fond blanc **et** sur fond noir (le pire des deux compte) :
 
 | Critère | Seuil | Rôle |
 | --- | --- | --- |
@@ -45,22 +45,25 @@ Une variante n’est retenue que si son fichier est plus léger que le PNG fidè
 
 Sinon, le PNG fidèle est conservé. Le calcul est déterministe : l’aperçu et l’export font le même choix, affiché sous l’aperçu (« Encodage retenu ») et dans le détail de l’historique. L’agrandissement, y compris le mode Pixel Art, garde l’encodage fidèle.
 
-Ces seuils ont été choisis à partir des essais ci-dessous (Pillow 13.0.0, Python 3.13, 6 novembre 2026). Les palettes retenues sont indiscernables de l’original à 200 % sur fond blanc et noir ; les palettes refusées montraient des bandes dans le ciel ou les dégradés, des taches de couleur, ou un pixel de fond devenu visible.
+Ces seuils ont été choisis à partir des essais du 6 novembre 2026 (Pillow 13.0.0, Python 3.13). Les palettes retenues sont indiscernables de l’original à 200 % sur fond blanc et noir ; les palettes refusées montraient des bandes dans le ciel ou les dégradés, des taches de couleur, ou un pixel de fond devenu visible. Mesures refaites le 9 novembre 2026 pour la 1.2.0 (« 1.1.x » : même calcul sans l’encodage d’origine) :
 
-| Image | Taille | Fichier source | PNG fidèle | PNG automatique | Résultat |
-| --- | --- | --- | --- | --- | --- |
-| Mascotte transparente (`branding/shrimpy.png`) | 1185 × 1185 | 507 067 o | 409 907 o | **46 945 o** (−90,7 %) | Palette : 41,9 dB, pire bloc 20, faux contours 0,59 %, bords 3,8 / 18 |
-| Icône transparente (`icons/settings.png`) | 256 × 256 | 92 412 o | 92 412 o | **21 247 o** (−77,0 %) | Palette : 34,8 dB, pire bloc 14, faux contours 0,31 %, bords 7,8 / 19 |
-| Dégradé de couleurs synthétique | 512 × 512 | 5 936 o | 2 376 o | 2 376 o (−60,0 %) | Fidèle : la palette pèserait 10 054 o et crée 6,9 % de faux contours |
-| Paysage photoréaliste (fond d’écran Windows `img102.jpg`, réduit et enregistré en PNG) | 1600 × 1000 | 1 117 810 o | 1 043 339 o | 1 043 339 o (−6,7 %) | Fidèle : la palette (163 964 o) crée 5,0 % de faux contours dans le ciel |
-| Photographie de rue au téléphone (non versionnée) | 2064 × 1161 | 3 131 050 o | 2 954 969 o | 2 954 969 o (−5,6 %) | Fidèle : pire bloc 34 avec la palette |
+| Image | Taille | Fichier source | PNG fidèle (Pillow) | 1.1.x | 1.2.0 | Résultat |
+| --- | --- | --- | --- | --- | --- | --- |
+| Mascotte transparente (`branding/shrimpy.png`) | 1185 × 1185 | 507 067 o | 409 907 o | 46 945 o | **46 945 o** (−90,7 %) | Palette : 41,9 dB, pire bloc 20, faux contours 0,59 %, bords 3,8 / 18 |
+| Icône transparente (`icons/settings.png`) | 256 × 256 | 92 412 o | 92 412 o | 21 247 o | **21 247 o** (−77,0 %) | Palette : 34,8 dB, pire bloc 14, faux contours 0,31 %, bords 7,8 / 19 |
+| Dégradé de couleurs synthétique | 512 × 512 | 5 936 o | 2 376 o | 2 376 o | 2 376 o (−60,0 %) | Fidèle : la palette pèserait 10 054 o et crée 6,9 % de faux contours |
+| Paysage (fond d’écran Windows `ThemeA/img20.jpg`, réduit à 1600 px et enregistré en PNG) | 1600 × 1000 | 738 047 o | 667 747 o | 667 747 o | 667 747 o (−9,5 %) | Fidèle : la meilleure palette crée 2,3 à 3,7 % de faux contours |
+| PNG déjà optimisé (niveaux de gris 4 bits avec un bloc texte, généré par les tests) | 64 × 64 | 2 207 o | 4 699 o | 2 240 o (**+1,5 %**) | **2 180 o** (−1,2 %) | Encodage d’origine, pixels identiques, bloc texte retiré |
 
-Contrôles complémentaires : les quatre autres icônes passent en palette (de −73 à −76 %), la barre latérale transparente aussi (127 793 → 24 799 o) ; l’illustration d’exemple (palette à 30,3 dB) et le décor pixel art `ocean.png` (pire bloc 43, des couleurs rares disparaissent) restent fidèles. Une image transparente entourée d’un large halo flou, couverte par les tests, illustre la troisième variante : la palette rendait visibles des pixels de fond, la variante à opacité d’origine est retenue.
+Sur 400 PNG d’applications Windows installées (5 Ko à 3 Mo), 35 ressortaient plus lourds qu’à l’entrée en 1.1.x, jusqu’à +54 % (palette d’une ombre, 14 455 → 22 227 o) ; aucun en 1.2.0, où 29 gardent leur encodage d’origine. La vérification de l’encodage d’origine prend 0,2 s sur une image de 25 MP.
+
+Contrôles complémentaires : une photographie de rue au téléphone (2064 × 1161, non versionnée) restait en PNG fidèle (pire bloc 34 avec la palette) ; les quatre autres icônes passent en palette (de −73 à −76 %), la barre latérale transparente aussi (127 793 → 24 799 o) ; l’illustration d’exemple (palette à 30,3 dB) et le décor pixel art `ocean.png` (pire bloc 43, des couleurs rares disparaissent) restent fidèles. Une image transparente entourée d’un large halo flou, couverte par les tests, illustre la troisième variante : la palette rendait visibles des pixels de fond, la variante à opacité d’origine est retenue.
 
 Limites observées :
 
 - Les photographies et les dégradés restent presque toujours en PNG fidèle : sans tramage, 256 couleurs y créent des bandes. Pour ces images, JPEG ou WebP restent plus adaptés.
-- Le quantificateur de Pillow est simple : sur certaines images, une palette plus soignée (par exemple avec libimagequant, absent des paquets Pillow pour Windows) serait acceptée là où Shrimp'It garde le PNG fidèle.
+- Le quantificateur de Pillow est simple : sur certaines images, une palette plus soignée (par exemple avec libimagequant, absent des paquets Pillow pour Windows) serait acceptée là où Shrimp'It garde le PNG fidèle. Essayé pour la 1.2.0 : `MAXCOVERAGE` avec k-moyennes ne fait passer que l’illustration d’exemple (198 455 o au lieu de 779 684 o, à 34,5 dB pour un seuil de 34), pour environ 13 s de plus sur 22 MP ; réduire à 128 couleurs ne gagne que 1 à 3 %. Ni l’un ni l’autre n’a été retenu.
+- Un PNG déjà optimisé n’est jamais alourdi s’il est en 8 bits ou moins, sans rotation EXIF et intact. Un PNG 16 bits est ramené en 8 bits et peut, rarement, ressortir plus lourd.
 - Le choix encode et compare plusieurs variantes. Mesuré sur une image transparente de 25 MP : 7,1 s et 0,74 Gio de mémoire au maximum, contre 2,2 s et 0,5 Gio pour le seul PNG fidèle ; sur une illustration opaque de 24 MP, 14,4 s et 0,59 Gio contre 12,9 s et 0,46 Gio. L’aperçu de compression fait le même calcul.
 - Les seuils sont des mesures de pixels, pas une évaluation de la perception humaine ni de la gestion des couleurs.
 
