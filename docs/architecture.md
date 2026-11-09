@@ -83,8 +83,14 @@ modèle de nom sont dans `gui/output_settings.py`.
 ## Compression PNG
 
 `png_compression.choose_png` reçoit les pixels normalisés d’une compression PNG (jamais d’un agrandissement)
-et renvoie les octets à écrire avec l’encodage retenu (`lossless`, `palette` ou `palette_alpha`), exposé par
-`ConversionResult.png_encoding`, l’aperçu et l’historique.
+et renvoie les octets à écrire avec l’encodage retenu (`lossless`, `original`, `palette` ou `palette_alpha`),
+exposé par `ConversionResult.png_encoding`, l’aperçu et l’historique.
+
+- Encodage d’origine (`original`, 1.2.0) : quand la source est un PNG, `engine` passe ses octets à
+  `choose_png`. `strip_png` ne garde que `IHDR`, `PLTE`, `tRNS`, `IDAT` et `IEND`, après contrôle des longueurs
+  et des CRC ; il refuse les PNG 16 bits et tout bloc critique inconnu. `original_encoding` relit le résultat
+  et le compare par bandes aux pixels normalisés : il n’est utilisé que s’il est identique et plus léger que le
+  PNG fidèle de Pillow. Les palettes doivent alors être plus légères que lui pour l’emporter.
 
 - Candidats, dans l’ordre : palette exacte si l’image a 256 valeurs RGBA ou moins (`exact_palette`, sans
   perte), sinon octree de Pillow sur l’image dont les couleurs cachées sous l’alpha 0 sont vidées ; puis,

@@ -74,7 +74,7 @@ class ConversionResult:
     output_bytes: int
     input_size: tuple[int, int]
     output_size: tuple[int, int]
-    # Set for PNG compression only: "lossless", "palette" or "palette_alpha" (see png_compression).
+    # PNG compression only: "lossless", "original", "palette" or "palette_alpha" (see png_compression).
     png_encoding: str | None = None
 
     @property
@@ -90,7 +90,8 @@ def convert_image(
 ) -> ConversionResult:
     """Compress or convert a static image without resizing it.
 
-    PNG output picks a palette automatically when it is lighter and faithful (see ``choose_png``).
+    PNG output picks a palette automatically when it is lighter and faithful, and keeps the encoding of
+    an already optimized PNG source, without its metadata, when it is lighter (see ``choose_png``).
     """
     return _process_image(source, destination, output_format, quality, scale=1)
 
@@ -169,6 +170,9 @@ def _process_image(
             pixels = oriented.convert("RGBA" if has_alpha else "RGB")
             # Create a new image to remove EXIF, GPS, text, and ICC metadata.
             clean = Image.frombytes(pixels.mode, pixels.size, pixels.tobytes())
+            compress_png = output_format == "PNG" and upscale_settings is None
+            # The original encoding is reused only if it decodes to exactly ``clean`` (see choose_png).
+            source_png = source.read_bytes() if compress_png and original.format == "PNG" else None
 
         if target_size != clean.size:
             clean = resize_image(clean, target_size, upscale_settings or UpscaleSettings(sharpen=False))
@@ -177,9 +181,10 @@ def _process_image(
             clean = flatten_on_white(clean)
 
         png_choice = None
-        if output_format == "PNG" and upscale_settings is None:
+        if compress_png:
             # Compression only: enlargements, Pixel Art included, keep the faithful encoding below.
-            png_choice = choose_png(clean)
+            png_choice = choose_png(clean, source_png)
+            source_png = None
         options = {"optimize": not fast_png} if output_format == "PNG" else {"quality": quality}
         if output_format == "JPEG":
             options.update(optimize=True, progressive=True)

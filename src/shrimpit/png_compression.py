@@ -8,6 +8,11 @@ Compression to PNG tries, in order:
    reduced to 256 while the original opacity is copied exactly.
 3. ``lossless``: the faithful optimized encoding, kept whenever no lighter variant passes ``Fidelity``.
 
+When the source is a PNG, its own encoding is also considered: ``original`` keeps only the chunks that
+carry the pixels (``IHDR``, ``PLTE``, ``tRNS``, ``IDAT``, ``IEND``), so metadata is still removed. It is
+used only when it decodes to exactly the normalized pixels and is lighter than Pillow's faithful encoding:
+an already optimized PNG is then not re-encoded into a heavier file. The palette variants must beat it.
+
 Every candidate is decoded again and compared with the original composited on white and on black.
 The thresholds were calibrated on a transparent mascot, icons, gradients and photographs (see the README):
 they accept palettes whose differences are invisible at 200 % zoom and reject banding and lost details.
@@ -15,7 +20,9 @@ they accept palettes whose differences are invisible at 200 % zoom and reject ba
 
 import logging
 import math
+import struct
 import sys
+import zlib
 from dataclasses import dataclass
 from io import BytesIO
 
@@ -38,8 +45,13 @@ MAX_EDGE_P99 = 32
 # Rows compared at once by measure(): a multiple of BLOCK_SIZE, so no block straddles two bands.
 BAND_ROWS = 256
 
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+# Chunks that carry the pixels; every other one (text, EXIF, ICC, gamma, time, animation) is dropped.
+PIXEL_CHUNKS = (b"IHDR", b"PLTE", b"tRNS", b"IDAT", b"IEND")
+
 ENCODING_LABELS = {
     "lossless": "PNG fidèle",
+    "original": "PNG fidèle, encodage d’origine sans métadonnées",
     "palette": "PNG à palette (256 couleurs max.)",
     "palette_alpha": "PNG à couleurs réduites, opacité d’origine",
 }
@@ -81,14 +93,21 @@ def save_png(image: Image.Image) -> bytes:
     return stream.getvalue()
 
 
-def choose_png(image: Image.Image) -> PngChoice:
+def choose_png(image: Image.Image, source: bytes | None = None) -> PngChoice:
     """Return the lightest acceptable encoding of a normalized RGB or RGBA image.
 
-    Only the faithful encoding may fail for lack of memory: the variants are optional, so a
-    ``MemoryError`` while building or measuring them keeps the faithful PNG already encoded.
+    ``source`` holds the bytes of the original file when it is a PNG; its encoding is reused, without
+    metadata, when it gives exactly the same pixels in fewer bytes (see ``original_encoding``).
+
+    Only the faithful encoding may fail for lack of memory: the other candidates are optional, so a
+    ``MemoryError`` while building or measuring them keeps the best faithful PNG already found.
     """
     lossless = save_png(image)
+    best = PngChoice(lossless, "lossless", len(lossless))
     try:
+        original = original_encoding(image, source) if source is not None else None
+        if original is not None and len(original) < len(lossless):
+            best = PngChoice(original, "original", len(lossless))
         for encoding, build in (("palette", palette_candidate), ("palette_alpha", exact_alpha_candidate)):
             candidate = build(image)
             if candidate is None:
@@ -96,7 +115,7 @@ def choose_png(image: Image.Image) -> PngChoice:
             data = save_png(candidate)
             # Free the candidate's pixels before decoding and measuring its encoded copy.
             del candidate
-            if len(data) >= len(lossless):
+            if len(data) >= len(best.data):
                 continue
             with Image.open(BytesIO(data)) as decoded:
                 decoded.load()
@@ -106,7 +125,59 @@ def choose_png(image: Image.Image) -> PngChoice:
         logging.getLogger(__name__).warning(
             "Not enough memory to evaluate PNG palettes for %s × %s pixels: faithful PNG kept", *image.size
         )
-    return PngChoice(lossless, "lossless", len(lossless))
+    return best
+
+
+def strip_png(data: bytes) -> bytes | None:
+    """Keep only the pixel chunks of a PNG of at most 8 bits per channel.
+
+    Return ``None`` for anything else: another format, a damaged or truncated chunk, a 16-bit image
+    (normalized to 8 bits, so its pixels would differ) or an unknown critical chunk.
+    """
+    if not data.startswith(PNG_SIGNATURE):
+        return None
+    kept = [PNG_SIGNATURE]
+    position = len(PNG_SIGNATURE)
+    while position + 12 <= len(data):
+        length, kind = struct.unpack_from(">I4s", data, position)
+        end = position + 12 + length
+        if end > len(data):
+            return None
+        (crc,) = struct.unpack_from(">I", data, end - 4)
+        if zlib.crc32(data[position + 4 : end - 4]) != crc:
+            return None
+        if kind == b"IHDR" and (length != 13 or data[position + 16] > 8):
+            return None
+        if kind in PIXEL_CHUNKS:
+            kept.append(data[position:end])
+        elif not kind[0] & 0x20:
+            # An uppercase first letter marks a critical chunk that decoders must understand.
+            return None
+        if kind == b"IEND":
+            return b"".join(kept)
+        position = end
+    return None
+
+
+def original_encoding(image: Image.Image, source: bytes) -> bytes | None:
+    """Return the source PNG without metadata when it decodes to exactly ``image``, else ``None``."""
+    stripped = strip_png(source)
+    if stripped is None:
+        return None
+    with Image.open(BytesIO(stripped)) as decoded:
+        if decoded.format != "PNG" or decoded.size != image.size:
+            return None
+        decoded.load()
+        has_alpha = "A" in decoded.getbands() or "transparency" in decoded.info
+        if has_alpha != (image.mode == "RGBA"):
+            return None
+        width, height = image.size
+        # Compare in bands, like measure(), so no full-size converted copy is made.
+        for top in range(0, height, BAND_ROWS):
+            box = (0, top, width, min(top + BAND_ROWS, height))
+            if decoded.crop(box).convert(image.mode).tobytes() != image.crop(box).tobytes():
+                return None
+    return stripped
 
 
 def palette_candidate(image: Image.Image) -> Image.Image:
