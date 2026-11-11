@@ -24,6 +24,8 @@ htmlcov/
 /audit-results/
 
 # Builds and distribution artifacts
+# Native palette engine, compiled from src/shrimpit/native/exoquant.c by scripts/build_png_engine.py
+/src/shrimpit/native/*.dll
 build/
 dist/
 /release/

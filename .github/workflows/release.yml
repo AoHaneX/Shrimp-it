@@ -57,9 +57,12 @@ jobs:
           .venv\Scripts\python.exe -m pip install --upgrade pip setuptools
           .venv\Scripts\python.exe -m pip install -e ".[build,dev]" -c requirements-tested.txt
           if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: Compile the ExoQuant palette engine
+        run: .venv\Scripts\python.exe scripts/build_png_engine.py
       - name: Run the tests
         env:
           QT_QPA_PLATFORM: offscreen
+          SHRIMPIT_REQUIRE_PNG_ENGINE: '1'
         run: .venv\Scripts\python.exe -m pytest -q
       - name: Install Inno Setup 6 if the runner lacks it
         shell: pwsh

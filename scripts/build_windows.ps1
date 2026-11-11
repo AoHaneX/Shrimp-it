@@ -41,7 +41,7 @@ function Initialize-BuildEnvironment {
     # Single quotes only: Windows PowerShell drops double quotes from native arguments.
     $probe = @'
 import importlib.util, pathlib, sys
-missing = [name for name in ('PIL', 'PySide6', 'PyInstaller', 'shrimpit') if importlib.util.find_spec(name) is None]
+missing = [name for name in ('PIL', 'PySide6', 'PyInstaller', 'ziglang', 'shrimpit') if importlib.util.find_spec(name) is None]
 if not missing:
     origin = pathlib.Path(importlib.util.find_spec('shrimpit').origin).resolve().parent
     if origin != pathlib.Path('src/shrimpit').resolve():
@@ -129,6 +129,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'The version of the code does not match the tag.' }
     # Fail early, before the long PyInstaller step, when the installer cannot be built.
     if (-not $SkipInstaller) { $iscc = Find-InnoSetup }
+
+    # Always rebuild the ExoQuant palette engine from the reviewed C sources (MIT).
+    & $Python scripts\build_png_engine.py
+    if ($LASTEXITCODE -ne 0) { throw 'Could not compile the ExoQuant palette engine.' }
 
     & $Python -m PyInstaller --noconfirm --clean --log-level WARN --distpath $dist --workpath $work packaging\shrimpit.spec
     if ($LASTEXITCODE -ne 0) { throw 'PyInstaller build failed.' }

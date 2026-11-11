@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, PngImagePlugin
 
+from shrimpit import refined_palette
 from shrimpit.engine import EXIF_ORIENTATION, ConversionError, convert_image, upscale_image
 from shrimpit.gui.workers import ExportJob, PreviewJob
 from shrimpit.png_compression import (
@@ -125,7 +126,9 @@ def test_semi_transparent_edges_stay_close(tmp_path):
     assert fidelity.edge_p99 <= MAX_EDGE_P99
 
 
-def test_degraded_edges_fall_back_to_exact_opacity(tmp_path):
+def test_degraded_edges_fall_back_to_exact_opacity(tmp_path, monkeypatch):
+    # Without the native palette engine, as in a source checkout where it was not compiled.
+    monkeypatch.setattr("shrimpit.png_compression.refined_palette_candidate", lambda image: None)
     image = glowing_sticker()
     # The plain palette shifts the soft shadow and lights up pixels that must stay invisible.
     with Image.open(_saved(tmp_path, palette_candidate(image))) as palette:
@@ -329,10 +332,13 @@ def raise_memory_error(*args, **kwargs):
     raise MemoryError
 
 
-@pytest.mark.parametrize("step", ["palette_candidate", "exact_alpha_candidate", "measure"])
+@pytest.mark.parametrize(
+    "step", ["palette_candidate", "refined_palette_candidate", "exact_alpha_candidate", "measure"]
+)
 def test_memory_error_while_evaluating_variants_keeps_faithful_png(tmp_path, monkeypatch, caplog, step):
-    image = glowing_sticker() if step == "exact_alpha_candidate" else sticker()
+    image = glowing_sticker() if step in ("refined_palette_candidate", "exact_alpha_candidate") else sticker()
     if step == "exact_alpha_candidate":
+        monkeypatch.setattr("shrimpit.png_compression.refined_palette_candidate", lambda image: None)
         # Reach the second variant: the plain palette is rejected for this image.
         assert choose_png(image).encoding == "palette_alpha"
     monkeypatch.setattr(f"shrimpit.png_compression.{step}", raise_memory_error)
@@ -397,11 +403,15 @@ def test_pixel_art_enlargement_keeps_every_color(tmp_path):
         assert output.tobytes() == image.resize((64, 64), Image.Resampling.NEAREST).tobytes()
 
 
-@pytest.mark.parametrize("kind", ["palette", "original"])
+@pytest.mark.parametrize("kind", ["palette", "original", "palette_refined"])
 def test_preview_and_export_make_the_same_choice(tmp_path, kind):
     source = tmp_path / "source.png"
     if kind == "palette":
         sticker().save(source)
+    elif kind == "palette_refined":
+        if not refined_palette.available():
+            pytest.skip("native palette engine not built")
+        glowing_sticker().save(source)
     else:
         source.write_bytes(packed_gray_png())
     options = Options(output_format="PNG")
