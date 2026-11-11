@@ -8,8 +8,9 @@ dynamic = ["version"]
 description = "Compression, conversion et agrandissement locaux d’images"
 readme = "README.md"
 authors = [{ name = "AoHane" }]
-# Code under MIT; artwork and sounds reserved (see LICENSE); bundled font under OFL.
-license = "MIT AND LicenseRef-Shrimpit-Assets AND OFL-1.1"
+# Code under MIT (ExoQuant included); artwork and sounds reserved (see LICENSE); bundled font under OFL;
+# mingw-w64 runtime startup code linked into the palette engine DLL under ZPL-2.1 / Public Domain.
+license = "MIT AND LicenseRef-Shrimpit-Assets AND OFL-1.1 AND ZPL-2.1"
 license-files = ["LICENSE", "src/shrimpit/assets/licenses/*.txt"]
 requires-python = ">=3.11"
 # Essentials and Addons (QtMultimedia) only: the PySide6 meta-package also installs
@@ -37,7 +38,8 @@ Issues = "https://github.com/AoHaneX/Shrimp-it/issues"
 [project.optional-dependencies]
 dev = ["pytest>=8,<10", "pytest-cov>=6,<8", "ruff>=0.14,<1"]
 audit = ["bandit>=1.9,<2", "pip-audit>=2.10,<3"]
-build = ["pyinstaller>=6.11,<7"]
+# ziglang provides the C compiler of scripts/build_png_engine.py (bundled ExoQuant palette engine).
+build = ["pyinstaller>=6.11,<7", "ziglang==0.15.2"]
 
 [project.gui-scripts]
 shrimpit = "shrimpit.__main__:main"
@@ -49,7 +51,7 @@ version = { attr = "shrimpit.__version__" }
 where = ["src"]
 
 [tool.setuptools.package-data]
-shrimpit = ["assets/backgrounds/*.png", "assets/branding/*.png", "assets/icons/*.png", "assets/icons/*.md", "assets/animations/*.gif", "assets/fonts/*.ttf", "assets/licenses/*.txt", "assets/sounds/*.ogg", "assets/examples/*.png", "assets/examples/*.jpg", "assets/examples/*.md"]
+shrimpit = ["assets/backgrounds/*.png", "assets/branding/*.png", "assets/icons/*.png", "assets/icons/*.md", "assets/animations/*.gif", "assets/fonts/*.ttf", "assets/licenses/*.txt", "assets/sounds/*.ogg", "assets/examples/*.png", "assets/examples/*.jpg", "assets/examples/*.md", "native/*.dll"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

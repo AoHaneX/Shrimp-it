@@ -4,9 +4,12 @@ Compression to PNG tries, in order:
 
 1. ``palette``: an indexed PNG of at most 256 colors. Images that already have 256 colors or fewer are
    mapped exactly; others are quantized with Pillow's fast octree, alpha included.
-2. ``palette_alpha``: when the palette is rejected and the image has semi-transparent pixels, colors are
+2. ``palette_refined``: when the fast palette is rejected, a palette built by the bundled ExoQuant engine
+   (MIT) and rebuilt up to ``MAX_REFINEMENTS`` times with the badly mapped pixels fed back (see
+   ``refined_palette_candidate``). Without the native library this step is skipped.
+3. ``palette_alpha``: when the palettes are rejected and the image has semi-transparent pixels, colors are
    reduced to 256 while the original opacity is copied exactly.
-3. ``lossless``: the faithful optimized encoding, kept whenever no lighter variant passes ``Fidelity``.
+4. ``lossless``: the faithful optimized encoding, kept whenever no lighter variant passes its checks.
 
 When the source is a PNG, its own encoding is also considered: ``original`` keeps only the chunks that
 carry the pixels (``IHDR``, ``PLTE``, ``tRNS``, ``IDAT``, ``IEND``), so metadata is still removed. It is
@@ -16,6 +19,7 @@ an already optimized PNG is then not re-encoded into a heavier file. The palette
 Every candidate is decoded again and compared with the original composited on white and on black.
 The thresholds were calibrated on a transparent mascot, icons, gradients and photographs (see the README):
 they accept palettes whose differences are invisible at 200 % zoom and reject banding and lost details.
+Every palette variant, including ``palette_refined``, must pass the same ``Fidelity`` thresholds.
 """
 
 import logging
@@ -27,6 +31,8 @@ from dataclasses import dataclass
 from io import BytesIO
 
 from PIL import Image, ImageChops
+
+from shrimpit import refined_palette
 
 PALETTE_COLORS = 256
 BACKGROUNDS = ("white", "black")
@@ -42,6 +48,8 @@ MAX_FALSE_CONTOURS = 0.01
 # Semi-transparent pixels (0 < alpha < 255): mean and 99th percentile of their error.
 MAX_EDGE_MEAN = 8.0
 MAX_EDGE_P99 = 32
+# Passes of the refined palette that feed badly mapped pixels back to ExoQuant (see the README).
+MAX_REFINEMENTS = 3
 # Rows compared at once by measure(): a multiple of BLOCK_SIZE, so no block straddles two bands.
 BAND_ROWS = 256
 
@@ -53,6 +61,7 @@ ENCODING_LABELS = {
     "lossless": "PNG fidèle",
     "original": "PNG fidèle, encodage d’origine sans métadonnées",
     "palette": "PNG à palette (256 couleurs max.)",
+    "palette_refined": "PNG à palette affinée (256 couleurs max.)",
     "palette_alpha": "PNG à couleurs réduites, opacité d’origine",
 }
 
@@ -108,7 +117,11 @@ def choose_png(image: Image.Image, source: bytes | None = None) -> PngChoice:
         original = original_encoding(image, source) if source is not None else None
         if original is not None and len(original) < len(lossless):
             best = PngChoice(original, "original", len(lossless))
-        for encoding, build in (("palette", palette_candidate), ("palette_alpha", exact_alpha_candidate)):
+        for encoding, build in (
+            ("palette", palette_candidate),
+            ("palette_refined", refined_palette_candidate),
+            ("palette_alpha", exact_alpha_candidate),
+        ):
             candidate = build(image)
             if candidate is None:
                 continue
@@ -126,6 +139,30 @@ def choose_png(image: Image.Image, source: bytes | None = None) -> PngChoice:
             "Not enough memory to evaluate PNG palettes for %s × %s pixels: faithful PNG kept", *image.size
         )
     return best
+
+
+def refined_palette_candidate(image: Image.Image) -> Image.Image | None:
+    """Return the first ExoQuant palette that passes ``Fidelity``, or ``None``.
+
+    Each refinement feeds the badly mapped pixels back to the quantizer, which mostly lowers local
+    errors (``worst_block``, edges). It cannot remove banding and tends to lower the global PSNR, so
+    refining stops as soon as either of those fails. ``None`` also means no native engine.
+    """
+    palette_builder = refined_palette.builder(image)
+    if palette_builder is None:
+        return None
+    for _ in range(1 + MAX_REFINEMENTS):
+        candidate = palette_builder.build()
+        fidelity = measure(image, candidate)
+        if fidelity.acceptable:
+            return candidate
+        if (
+            fidelity.false_contours > MAX_FALSE_CONTOURS
+            or fidelity.psnr_db < MIN_PSNR_DB
+            or not palette_builder.refine(candidate)
+        ):
+            return None
+    return None
 
 
 def strip_png(data: bytes) -> bytes | None:

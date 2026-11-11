@@ -51,10 +51,17 @@ VERSION_INFO = VSVersionInfo(
     ],
 )
 
+# The ExoQuant palette engine (MIT) is compiled by scripts/build_png_engine.py before this recipe runs.
+PNG_ENGINE = SOURCE / "native" / "exoquant.dll"
+if not PNG_ENGINE.is_file():
+    raise SystemExit(f"Missing {PNG_ENGINE}: run scripts/build_png_engine.py first.")
+
 analysis = Analysis(
     [str(ROOT / "packaging" / "launcher.py")],
     pathex=[str(ROOT / "src")],
-    datas=collect_data_files("shrimpit", excludes=["**/__pycache__/**"]),
+    # The C sources stay out of the build; the DLL is listed as a binary so its imports are checked.
+    binaries=[(str(PNG_ENGINE), "shrimpit/native")],
+    datas=collect_data_files("shrimpit", excludes=["**/__pycache__/**", "native/**"]),
     excludes=["tkinter"],
     noarchive=False,
 )

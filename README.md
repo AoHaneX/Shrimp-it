@@ -28,13 +28,14 @@ Pour JPEG et WebP, diminuer la qualité peut alléger le fichier, mais aussi ren
 
 #### Compression PNG automatique
 
-En compression, le format PNG compare jusqu’à quatre encodages, entièrement en local avec Pillow :
+En compression, le format PNG compare plusieurs encodages, entièrement en local. Les variantes 2 à 4 sont **avec perte** : elles modifient légèrement les pixels et ne sont gardées que si les contrôles ci-dessous sont respectés. Le PNG fidèle reste **sans perte**.
 
 1. **PNG fidèle** : les pixels normalisés, encodés sans perte et optimisés (le seul encodage des versions précédant la 1.1.0). Si la source est déjà un PNG, son propre encodage est aussi essayé, réduit aux blocs qui portent les pixels (`IHDR`, `PLTE`, `tRNS`, `IDAT`, `IEND`) : textes, EXIF, profils ICC, gamma et date sont retirés comme avant. Il n’est gardé que s’il est plus léger et qu’une fois relu, il redonne exactement les mêmes pixels (pas de PNG 16 bits, pas de rotation EXIF, pas de bloc endommagé). Un PNG déjà optimisé par un autre outil n’est ainsi plus réencodé en un fichier plus lourd (« PNG fidèle, encodage d’origine sans métadonnées »).
 2. **PNG à palette** : 256 couleurs au maximum, opacité comprise. Une image qui contient déjà 256 couleurs ou moins est convertie sans aucune perte ; les autres sont réduites par l’octree rapide de Pillow, après avoir vidé la couleur cachée sous les pixels totalement transparents.
-3. **PNG à couleurs réduites, opacité d’origine** : essayé quand la palette est refusée et que l’image a des pixels semi-transparents. Les couleurs sont réduites à 256, mais l’opacité de chaque pixel est recopiée telle quelle.
+3. **PNG à palette affinée** (1.3.0) : essayé quand la palette rapide est refusée. Le quantificateur [ExoQuant](https://github.com/exoticorn/exoquant) (licence MIT, intégré sous forme de DLL) construit une palette de 256 couleurs à partir d’un échantillon régulier de 192 × 192 pixels, sans tramage. La palette est ensuite **affinée** jusqu’à trois fois : les pixels dont l’écart dépasse 16 niveaux sur fond blanc ou noir sont réinjectés dans l’histogramme (32 768 au plus par passe), ce qui donne leur propre entrée aux couleurs rares d’un liseré ou d’un reflet. Chaque passe subit le contrôle complet ci-dessous ; l’affinage s’arrête dès qu’une passe est acceptée, ou dès qu’elle échoue sur les bandes ou le PSNR global, que l’affinage ne sait pas corriger. Une entrée de palette entièrement transparente est réservée aux pixels d’opacité nulle : le fond reste invisible.
+4. **PNG à couleurs réduites, opacité d’origine** : essayé quand les palettes sont refusées et que l’image a des pixels semi-transparents. Les couleurs sont réduites à 256, mais l’opacité de chaque pixel est recopiée telle quelle.
 
-Une variante à palette n’est retenue que si son fichier est plus léger que le meilleur PNG fidèle et si, une fois rouverte, elle garde les dimensions, laisse chaque pixel totalement transparent à 0 d’opacité et respecte tous les seuils suivants, mesurés après composition sur fond blanc **et** sur fond noir (le pire des deux compte) :
+Une variante à palette n’est retenue que si son fichier est plus léger que le meilleur PNG fidèle et si, une fois rouverte, elle garde les dimensions, laisse chaque pixel totalement transparent à 0 d’opacité et respecte tous les seuils suivants, **identiques pour les trois variantes**, mesurés après composition sur fond blanc **et** sur fond noir (le pire des deux compte) :
 
 | Critère | Seuil | Rôle |
 | --- | --- | --- |
@@ -45,7 +46,9 @@ Une variante à palette n’est retenue que si son fichier est plus léger que l
 
 Sinon, le PNG fidèle est conservé. Le calcul est déterministe : l’aperçu et l’export font le même choix, affiché sous l’aperçu (« Encodage retenu ») et dans le détail de l’historique. L’agrandissement, y compris le mode Pixel Art, garde l’encodage fidèle.
 
-Ces seuils ont été choisis à partir des essais du 6 novembre 2026 (Pillow 13.0.0, Python 3.13). Les palettes retenues sont indiscernables de l’original à 200 % sur fond blanc et noir ; les palettes refusées montraient des bandes dans le ciel ou les dégradés, des taches de couleur, ou un pixel de fond devenu visible. Mesures refaites le 9 novembre 2026 pour la 1.2.0 (« 1.1.x » : même calcul sans l’encodage d’origine) :
+**Repli sans le moteur ExoQuant** : si `exoquant.dll` est absente (sources lancées sans l’avoir compilée), illisible ou incomplète, la variante 3 est simplement ignorée et Shrimp'It se comporte comme la 1.2.0. Un manque de mémoire pendant la construction ou la mesure d’une variante conserve aussi le PNG fidèle. Le portable et l’installateur embarquent la DLL, et leur autotest vérifie qu’elle se charge.
+
+Ces seuils ont été choisis à partir des essais du 6 novembre 2026 (Pillow 13.0.0, Python 3.13) et n’ont pas été modifiés pour la palette affinée. Les palettes refusées montraient des bandes dans le ciel ou les dégradés, des taches de couleur, ou un pixel de fond devenu visible. Mesures refaites le 9 novembre 2026 pour la 1.2.0 (« 1.1.x » : même calcul sans l’encodage d’origine) :
 
 | Image | Taille | Fichier source | PNG fidèle (Pillow) | 1.1.x | 1.2.0 | Résultat |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -57,14 +60,41 @@ Ces seuils ont été choisis à partir des essais du 6 novembre 2026 (Pillow 13.
 
 Sur 400 PNG d’applications Windows installées (5 Ko à 3 Mo), 35 ressortaient plus lourds qu’à l’entrée en 1.1.x, jusqu’à +54 % (palette d’une ombre, 14 455 → 22 227 o) ; aucun en 1.2.0, où 29 gardent leur encodage d’origine. La vérification de l’encodage d’origine prend 0,2 s sur une image de 25 MP.
 
-Contrôles complémentaires : une photographie de rue au téléphone (2064 × 1161, non versionnée) restait en PNG fidèle (pire bloc 34 avec la palette) ; les quatre autres icônes passent en palette (de −73 à −76 %), la barre latérale transparente aussi (127 793 → 24 799 o) ; l’illustration d’exemple (palette à 30,3 dB) et le décor pixel art `ocean.png` (pire bloc 43, des couleurs rares disparaissent) restent fidèles. Une image transparente entourée d’un large halo flou, couverte par les tests, illustre la troisième variante : la palette rendait visibles des pixels de fond, la variante à opacité d’origine est retenue.
+Contrôles complémentaires : une photographie de rue au téléphone (2064 × 1161, non versionnée) restait en PNG fidèle (pire bloc 34 avec la palette) ; les quatre autres icônes passent en palette (de −73 à −76 %), la barre latérale transparente aussi (127 793 → 24 799 o) ; l’illustration d’exemple (palette à 30,3 dB) et le décor pixel art `ocean.png` (pire bloc 43, des couleurs rares disparaissent) restent fidèles. Une image transparente entourée d’un large halo flou, couverte par les tests, illustre la quatrième variante : la palette rendait visibles des pixels de fond, la variante à opacité d’origine est retenue.
+
+**Palette affinée, mesures du 11 novembre 2026** (moteur de l’application `convert_image`, Windows 11, Python 3.13, Pillow 13.0.0 ; temps médian de 3 exécutions, chacune dans un processus séparé ; sorties identiques octet pour octet d’une exécution à l’autre) :
+
+| Image | Taille | Source | 1.2.0 | 1.3.0 | Temps 1.2.0 → 1.3.0 | Résultat 1.3.0 |
+| --- | --- | --- | --- | --- | --- | --- |
+| Illustration transparente avec halo lumineux (personnelle, non versionnée) | 1246 × 1263 | 1 848 369 o | 1 766 729 o (fidèle) | **289 367 o** (−84,3 %) | 0,9 → 1,7 s | Palette affinée, 3ᵉ passe : 36,4 dB, pire bloc 23, faux contours 0,27 %, bords 6,6 / 19 |
+| Pixel art agrandi ×2 (non versionné) | 2880 × 2880 | 962 431 o | 962 431 o (fidèle) | **137 420 o** (−85,7 %) | 1,1 → 3,9 s | Palette affinée, 4ᵉ passe : 41,6 dB, pire bloc 23 |
+| Pixel art synthétique, 320 couleurs | 576 × 576 | 24 147 o | 24 147 o | **10 342 o** (−57,2 %) | 0,06 → 0,11 s | Palette affinée |
+| Illustration générée par IA, opaque (non versionnée) | 1183 × 1329 | 2 075 797 o | 1 905 612 o | 1 905 612 o | 1,1 → 1,3 s | Fidèle : 3,3 à 3,8 % de faux contours avec toutes les palettes essayées |
+| Capture d’écran agrandie ×2 (non versionnée) | 3812 × 1932 | 1 629 525 o | 1 629 525 o | 1 629 525 o | 1,8 → 2,5 s | Fidèle : 2,5 % de faux contours dès la 1ʳᵉ passe, arrêt immédiat |
+| Illustration synthétique de 25 MP, transparente | 5000 × 5000 | 7 244 874 o | 6 207 514 o | **1 300 785 o** (−82,0 %) | 19,4 → 20,5 s | Palette affinée ; pic mémoire 760 Mo dans les deux versions |
+
+Pour comparaison, le fichier produit par un service en ligne pour l’illustration au halo pèse 434 028 o (−76,5 %) ; mesuré de la même façon, il obtient 37,9 dB, un pire bloc de 43 (168 blocs au-dessus de 24 contre 0 pour la 1.3.0) et 0,64 % de faux contours : il serait refusé par ces seuils. Aucune des deux versions n’est identique à l’original : à 100 % sur fond noir, les dégradés de l’étoile centrale et des ovales rouges sont un peu aplatis dans les deux cas (environ 31 à 33 dB localement), ce que le PSNR global moyenne avec le reste de l’image. Les mascottes, icônes, logos, photos synthétiques et images déjà indexées ou entièrement transparentes gardent exactement le même résultat qu’en 1.2.0 : la palette rapide y est acceptée ou l’encodage d’origine retenu avant que la palette affinée soit essayée.
+
+Réglages essayés (illustration au halo et pixel art ×2 ; poids, ou « fidèle » quand aucune passe n’est acceptée) :
+
+| Échantillon | Passes max. | Halo | Pixel art ×2 | Remarque |
+| --- | --- | --- | --- | --- |
+| 192 px | 1 (sans affinage) | fidèle (pire bloc 37-38) | fidèle (pire bloc 41) | Les couleurs rares manquent |
+| 128 px | 4 | 287 595 o | fidèle | Plus rapide, moins régulier |
+| **192 px** | **4** | **289 367 o** | **137 420 o** | **Retenu** |
+| 192 px | 6 | 289 367 o | 137 420 o | Aucun gain |
+| 256 px | 4 | 312 617 o | 146 456 o | Plus lourd, plus lent |
+| 192 px, tramage ordonné 2 × 2 | 1 | 443 625 o, refusé | — | Le tramage crée 1,8 % de faux contours et alourdit le fichier |
+
+Le mode « haute qualité » d’ExoQuant (optimisation de la palette après chaque division) donnait des résultats proches pour un temps 5 à 15 fois supérieur : il n’est pas utilisé.
 
 Limites observées :
 
-- Les photographies et les dégradés restent presque toujours en PNG fidèle : sans tramage, 256 couleurs y créent des bandes. Pour ces images, JPEG ou WebP restent plus adaptés.
-- Le quantificateur de Pillow est simple : sur certaines images, une palette plus soignée (par exemple avec libimagequant, absent des paquets Pillow pour Windows) serait acceptée là où Shrimp'It garde le PNG fidèle. Essayé pour la 1.2.0 : `MAXCOVERAGE` avec k-moyennes ne fait passer que l’illustration d’exemple (198 455 o au lieu de 779 684 o, à 34,5 dB pour un seuil de 34), pour environ 13 s de plus sur 22 MP ; réduire à 128 couleurs ne gagne que 1 à 3 %. Ni l’un ni l’autre n’a été retenu.
+- Les photographies et les dégradés restent presque toujours en PNG fidèle : sans tramage, 256 couleurs y créent des bandes, palette affinée comprise. Pour ces images, JPEG ou WebP restent plus adaptés. Aucune réduction de 75 à 80 % n’est garantie.
+- Le résultat d’une image proche des seuils dépend des réglages : une image refusée avec un échantillon de 192 px a été acceptée avec 128 px. Ces seuils mesurent des pixels et ne garantissent pas une différence invisible : vérifiez l’aperçu à 100 % sur les dégradés lumineux.
+- Sur une image refusée, la palette affinée ajoute du temps de calcul (de +0,2 s à +0,7 s dans les essais ci-dessus) ; sur une image acceptée, elle ajoute jusqu’à 3 s pour 8 MP, et 1 s environ pour 25 MP.
 - Un PNG déjà optimisé n’est jamais alourdi s’il est en 8 bits ou moins, sans rotation EXIF et intact. Un PNG 16 bits est ramené en 8 bits et peut, rarement, ressortir plus lourd.
-- Le choix encode et compare plusieurs variantes. Mesuré sur une image transparente de 25 MP : 7,1 s et 0,74 Gio de mémoire au maximum, contre 2,2 s et 0,5 Gio pour le seul PNG fidèle ; sur une illustration opaque de 24 MP, 14,4 s et 0,59 Gio contre 12,9 s et 0,46 Gio. L’aperçu de compression fait le même calcul.
+- Le choix encode et compare plusieurs variantes. Mesuré en 1.2.0 sur une image transparente de 25 MP : 7,1 s et 0,74 Gio de mémoire au maximum, contre 2,2 s et 0,5 Gio pour le seul PNG fidèle ; sur une illustration opaque de 24 MP, 14,4 s et 0,59 Gio contre 12,9 s et 0,46 Gio. L’aperçu de compression fait le même calcul.
 - Les seuils sont des mesures de pixels, pas une évaluation de la perception humaine ni de la gestion des couleurs.
 
 ### Agrandir sans IA
@@ -136,6 +166,14 @@ Installer les outils de développement, puis lancer les contrôles de style et l
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check.ps1
 ```
 
+`check.ps1` compile d’abord le moteur de palette `src\shrimpit\native\exoquant.dll` s’il manque ou si ses sources ont changé, puis exige qu’il se charge : il faut pour cela le compilateur de l’extra `build` (`pip install -e ".[build]"`, paquet `ziglang` épinglé, licence MIT, utilisé seulement à la construction). Pour le compiler à la main :
+
+```powershell
+.\.venv\Scripts\python.exe scripts\build_png_engine.py
+```
+
+Sans cette DLL, l’application fonctionne mais la palette affinée n’est pas essayée. Deux compilations successives produisent un fichier identique ; la DLL n’est pas versionnée.
+
 Pour exécuter seulement les tests :
 
 ```powershell
@@ -159,7 +197,7 @@ Une seule commande produit, dans `release\`, l’archive portable et l’install
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_windows.ps1
 ```
 
-Le script installe au besoin l’extra `build` dans `.venv`, puis lance `ShrimpIt.exe --self-test` sur l’archive extraite, sans Python dans le `PATH`. Outils, fichiers produits et préparation d’une nouvelle version : [Distribution Windows](docs/distribution-windows.md).
+Le script installe au besoin l’extra `build` dans `.venv`, recompile `exoquant.dll` depuis ses sources, puis lance `ShrimpIt.exe --self-test` sur l’archive extraite, sans Python dans le `PATH`. Outils, fichiers produits et préparation d’une nouvelle version : [Distribution Windows](docs/distribution-windows.md).
 
 ## Organisation et documentation
 
@@ -191,4 +229,4 @@ Le **code source** est distribué sous la licence MIT. Le fichier [`LICENSE`](LI
 
 Les **illustrations, mascottes, logos, icônes, fonds et animations propres à Shrimp'It et ReefKit** ont été créés par l’auteur du projet avec le générateur d’images d’OpenAI (ChatGPT, génération assistée par IA), pour cette application. L’application elle-même n’utilise aucune IA. Ces ressources, ainsi que les sons et les captures de `docs/images/`, sont exclues de la licence MIT : tous droits réservés, comme l’indique [`LICENSE`](LICENSE). Leur présence dans ce dépôt ou dans une version distribuée n’accorde pas d’autorisation de les réutiliser, modifier ou redistribuer. Toute réutilisation nécessite une autorisation écrite préalable.
 
-Les ressources tierces restent soumises à leurs licences respectives. La licence de la police Chakra Petch est fournie dans `src/shrimpit/assets/licenses/` ; la provenance des exemples est décrite dans leur [documentation](src/shrimpit/assets/examples/README.md).
+Les ressources tierces restent soumises à leurs licences respectives, fournies dans `src/shrimpit/assets/licenses/` : police Chakra Petch (OFL 1.1), quantificateur ExoQuant de Dennis Ranke (MIT, copie modifiée dans `src/shrimpit/native/`, modifications listées en tête de `exoquant.c`) et code de démarrage du runtime mingw-w64 lié dans `exoquant.dll` par la chaîne Zig (domaine public, notice ZPL 2.1 du paquet). Aucune bibliothèque sous GPL n’est utilisée ; la provenance des exemples est décrite dans leur [documentation](src/shrimpit/assets/examples/README.md).

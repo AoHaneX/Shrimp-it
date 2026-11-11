@@ -10,7 +10,7 @@ from PySide6.QtCore import QCoreApplication, QElapsedTimer, QSettings, QThread, 
 from PySide6.QtGui import QMovie
 from PySide6.QtMultimedia import QMediaPlayer
 
-from shrimpit import __version__
+from shrimpit import __version__, refined_palette
 from shrimpit.engine import convert_image, upscale_image
 from shrimpit.limits import available_memory_bytes
 from shrimpit.png_compression import measure
@@ -45,7 +45,10 @@ def check_assets(folder):
     ]
     paths += [ASSETS / "icons" / f"{name}.png" for name in ICONS]
     paths += [ASSETS / "examples" / name for name in EXAMPLES]
-    paths.append(ASSETS / "licenses" / "chakra-petch-OFL.txt")
+    paths += [
+        ASSETS / "licenses" / name
+        for name in ("chakra-petch-OFL.txt", "ExoQuant.txt", "mingw-w64-runtime.txt")
+    ]
     missing = [path.name for path in paths if not path.is_file()]
     if missing:
         raise AssertionError(f"missing assets: {', '.join(missing)}")
@@ -71,6 +74,20 @@ def check_transparent_png(folder):
         original_rgba, output_rgba = original.convert("RGBA"), output.convert("RGBA")
         if output.size != original.size or not measure(original_rgba, output_rgba).acceptable:
             raise AssertionError("PNG compression changed the size or failed the fidelity check")
+
+
+def check_refined_palette(folder):
+    """Load the bundled ExoQuant engine and build a palette that keeps the background invisible."""
+    if not refined_palette.available():
+        raise AssertionError(f"ExoQuant engine cannot be loaded: {refined_palette.NATIVE_LIBRARY}")
+    with Image.open(SHRIMPY_ICON) as source:
+        original = source.convert("RGBA")
+    candidate = refined_palette.builder(original).build()
+    if candidate.mode != "P" or candidate.size != original.size:
+        raise AssertionError("the refined palette was not built")
+    fidelity = measure(original, candidate)
+    if not fidelity.transparent_kept or fidelity.psnr_db < 30:
+        raise AssertionError(f"the refined palette is not usable: {fidelity}")
 
 
 def check_enlargement(folder):
@@ -141,6 +158,7 @@ CHECKS = (
     ("Ressources de l’application", check_assets),
     ("Compression JPEG, PNG et WebP", check_formats),
     ("Compression PNG automatique d’une image transparente", check_transparent_png),
+    ("Moteur de palette affinée ExoQuant", check_refined_palette),
     ("Agrandissement Photographie, Illustration et Pixel Art", check_enlargement),
     ("Mémoire disponible pour les grands exports", check_memory),
     ("Police, animations et traduction Qt", check_qt_resources),

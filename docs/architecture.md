@@ -83,7 +83,8 @@ modèle de nom sont dans `gui/output_settings.py`.
 ## Compression PNG
 
 `png_compression.choose_png` reçoit les pixels normalisés d’une compression PNG (jamais d’un agrandissement)
-et renvoie les octets à écrire avec l’encodage retenu (`lossless`, `original`, `palette` ou `palette_alpha`),
+et renvoie les octets à écrire avec l’encodage retenu (`lossless`, `original`, `palette`, `palette_refined`
+ou `palette_alpha`),
 exposé par `ConversionResult.png_encoding`, l’aperçu et l’historique.
 
 - Encodage d’origine (`original`, 1.2.0) : quand la source est un PNG, `engine` passe ses octets à
@@ -93,22 +94,58 @@ exposé par `ConversionResult.png_encoding`, l’aperçu et l’historique.
   PNG fidèle de Pillow. Les palettes doivent alors être plus légères que lui pour l’emporter.
 
 - Candidats, dans l’ordre : palette exacte si l’image a 256 valeurs RGBA ou moins (`exact_palette`, sans
-  perte), sinon octree de Pillow sur l’image dont les couleurs cachées sous l’alpha 0 sont vidées ; puis,
-  si l’image a des pixels semi-transparents, couleurs réduites avec l’alpha d’origine recopié. Le premier
-  candidat plus léger que le PNG fidèle et accepté par `Fidelity.acceptable` l’emporte.
+  perte), sinon octree de Pillow sur l’image dont les couleurs cachées sous l’alpha 0 sont vidées ; puis
+  palette affinée ExoQuant (`refined_palette_candidate`, 1.3.0) ; puis, si l’image a des pixels
+  semi-transparents, couleurs réduites avec l’alpha d’origine recopié. Le premier candidat plus léger que
+  le PNG fidèle et accepté par `Fidelity.acceptable` l’emporte. Les seuils sont les mêmes pour tous.
 - `measure` rouvre le candidat encodé et le compare sur fond blanc et noir : PSNR global, pire bloc 4 × 4,
   faux contours (bandes) et erreur des pixels semi-transparents ; un pixel transparent qui ne l’est plus
   rejette le candidat. Les seuils sont des constantes du module, justifiées par les mesures du README.
 - Les variantes sont facultatives : une `MemoryError` pendant leur construction ou leur mesure conserve le PNG
   fidèle déjà encodé (avertissement dans les journaux). Seul un manque de mémoire pendant l’encodage fidèle fait
   échouer l’image.
-- Libimagequant (meilleure palette, tramage) n’est pas utilisé : il est absent des paquets Pillow pour Windows.
-  `MEDIANCUT` et `MAXCOVERAGE` n’acceptent pas l’alpha, et leurs k-moyennes coûtent plusieurs secondes.
+- Libimagequant (pngquant) n’est pas utilisé : sous GPL v3 ou licence commerciale, il imposerait la GPL à la
+  distribution, qui doit rester sous MIT. `MEDIANCUT` et `MAXCOVERAGE` de Pillow n’acceptent pas l’alpha, et leurs
+  k-moyennes coûtent plusieurs secondes.
 - `measure` compare les images par bandes de `BAND_ROWS` lignes (256) et additionne exactement chaque critère :
   le résultat est identique à une comparaison de l’image entière, sans copies pleine taille. Pic mesuré sur
   une image transparente de 25 MP : 0,74 Gio (1,6 Gio en comparant l’image entière), contre 0,5 Gio pour le
   seul PNG fidèle ; durée 7,1 s contre 2,2 s. L’aperçu de compression appelle le même code, sans raccourci,
   pour afficher le poids et l’encodage réels.
+
+### Palette affinée (ExoQuant)
+
+- `native/exoquant.c` et `exoquant.h` : ExoQuant v0.7 de Dennis Ranke (MIT), copié depuis
+  `exoticorn/exoquant@4ec54ab` puis modifié (liste en tête du fichier) : échecs d’allocation signalés par
+  `exq_failed`, tri de l’histogramme en tri fusion itératif recevant sa direction en paramètre (plus de
+  variable globale ni de récursion profonde), direction nulle au lieu de NaN pour un nœud de couleurs
+  identiques, cache des couleurs absentes de l’histogramme dans `exq_map_image`, suppression de
+  `exq_map_image_random` (`rand()`). Le code C n’a plus d’état global : plusieurs threads peuvent l’appeler.
+- `scripts/build_png_engine.py` compile `native/exoquant.dll` avec `ziglang` (extra `build`, Zig 0.15.2) en
+  `-O2 -Wall -Werror`, cible `x86_64-windows-gnu`. La DLL ne dépend que de `KERNEL32` et de l’UCRT
+  (`api-ms-win-crt-*`), présents sur Windows 10 et 11 ; deux compilations donnent le même fichier. Elle n’est
+  pas versionnée : `check.ps1`, les workflows et `build_windows.ps1` la compilent. `shrimpit.spec` la déclare
+  comme binaire et refuse de construire sans elle ; les sources C ne sont pas embarquées.
+- `refined_palette.py` charge la DLL par `ctypes` (une seule fois, `functools.cache`) et déclare chaque
+  signature. DLL absente, illisible ou incomplète : `builder` renvoie `None` et la variante est ignorée.
+  `PaletteBuilder` vide les couleurs cachées sous l’alpha 0, échantillonne une grille de 192 × 192 pixels au
+  plus proche voisin, réserve l’entrée 255 entièrement transparente aux pixels d’opacité nulle et demande au
+  plus autant de couleurs que l’échantillon en contient (ExoQuant ne peut pas diviser une couleur unique).
+  Les pixels de l’image sont passés en lecture seule (`bytes`) ; les sorties sont des `bytearray`.
+- `refine` compare le candidat à la source sur fond blanc et noir par bandes de 256 lignes et ajoute à
+  l’histogramme, avec un pas régulier, au plus 32 768 pixels dont l’écart dépasse 16 niveaux.
+- `png_compression.refined_palette_candidate` construit la palette, la mesure avec `measure`, et l’affine
+  au plus `MAX_REFINEMENTS` (3) fois : il s’arrête dès qu’une passe est acceptée, ou renvoie `None` dès qu’une
+  passe échoue sur les faux contours ou le PSNR global, que l’affinage ne corrige pas. `choose_png` refait
+  ensuite le contrôle sur le fichier encodé, comme pour les autres variantes.
+- Limites : `MAX_PIXELS` (2³¹ − 1) protège les compteurs `int` du code C, bien au-delà des 25 MP acceptés en
+  entrée. Un échec d’allocation dans le C lève `MemoryError`, que `choose_png` traite comme pour les autres
+  variantes (PNG fidèle conservé). Le traitement reste sérialisé par `gui/workers.processing_slot`.
+- Tests : `tests/test_refined_palette.py` (couleurs rares retrouvées par l’affinage, arrêt sur les bandes,
+  entrée transparente réservée, images de 1 pixel, uniformes ou transparentes, déterminisme entre threads,
+  DLL absente ou endommagée). Avec `SHRIMPIT_REQUIRE_PNG_ENGINE=1` (`check.ps1`, CI), une DLL absente fait
+  échouer les tests au lieu de les ignorer. L’autotest du portable vérifie aussi qu’elle se charge.
+- Les images personnelles de comparaison restent dans `tests/n/`, exclu de Git.
 
 ## Agrandissement
 
