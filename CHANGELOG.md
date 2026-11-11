@@ -3,6 +3,23 @@
 Chaque section `## X.Y.Z` devient la partie « Nouveautés » des notes de la release GitHub `vX.Y.Z`
 (`packaging/reefkit_release.py`).
 
+## 1.3.0
+
+### Ajouts
+
+- **Palette PNG affinée** : quand la palette rapide est refusée, Shrimp'It essaie une palette construite par
+  le quantificateur ExoQuant (licence MIT, intégré), puis l'affine jusqu'à trois fois en redonnant leur place
+  aux couleurs rares (liserés, reflets). Elle n'est gardée que si elle passe les mêmes contrôles de fidélité
+  qu'avant, sans seuil assoupli. Exemple : une illustration transparente au halo lumineux passe de 1,85 Mo à
+  289 Ko (−84 %) au lieu de rester en PNG fidèle ; un pixel art agrandi de 962 Ko à 137 Ko. Les photographies
+  et les dégradés restent en PNG fidèle.
+
+### Distribution
+
+- Le moteur de palette est une petite DLL compilée depuis ses sources C à chaque construction ; sans elle,
+  l'application garde le comportement de la 1.2.0. Les licences d'ExoQuant et du runtime mingw-w64 sont
+  fournies avec l'application.
+
 ## 1.2.0
 
 ### Ajouts
