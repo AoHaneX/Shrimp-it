@@ -7,4 +7,4 @@ pytest==9.2.0
 pytest-cov==7.1.0
 ruff==0.17.4
 # Build only: C compiler of scripts/build_png_engine.py.
-ziglang==0.15.2
+ziglang==0.17.1

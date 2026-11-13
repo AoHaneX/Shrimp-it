@@ -39,7 +39,7 @@ Issues = "https://github.com/AoHaneX/Shrimp-it/issues"
 dev = ["pytest>=8,<10", "pytest-cov>=6,<8", "ruff>=0.14,<1"]
 audit = ["bandit>=1.9,<2", "pip-audit>=2.10,<3"]
 # ziglang provides the C compiler of scripts/build_png_engine.py (bundled ExoQuant palette engine).
-build = ["pyinstaller>=6.11,<7", "ziglang==0.15.2"]
+build = ["pyinstaller>=6.11,<7", "ziglang==0.17.1"]
 
 [project.gui-scripts]
 shrimpit = "shrimpit.__main__:main"
